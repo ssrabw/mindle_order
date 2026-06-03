@@ -31,6 +31,68 @@ const OrderPage: React.FC = () => {
 
   // Phone Lookup State
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'member' | 'new'>('idle');
+  const [hasExistingOrderToday, setHasExistingOrderToday] = useState<boolean>(false);
+
+  const checkExistingOrderToday = async (phoneStr: string) => {
+    const cleaned = phoneStr.replace(/\D/g, '');
+    if (cleaned.length < 9) {
+      setHasExistingOrderToday(false);
+      return;
+    }
+
+    try {
+      // Get current KST time (UTC+9)
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstTime = new Date(now.getTime() + kstOffset);
+      const yyyy = kstTime.getUTCFullYear();
+      const month = kstTime.getUTCMonth();
+      const date = kstTime.getUTCDate();
+      const hour = kstTime.getUTCHours(); // KST hour (0 ~ 23)
+
+      let cycleStartKST: Date;
+      let cycleEndKST: Date;
+
+      if (hour < 4) {
+        // Case 1: Before 4 AM KST. Cycle starts yesterday 4 AM KST and ends today 4 AM KST.
+        cycleStartKST = new Date(Date.UTC(yyyy, month, date - 1, 4, 0, 0));
+        cycleEndKST = new Date(Date.UTC(yyyy, month, date, 3, 59, 59, 999));
+      } else {
+        // Case 2: At or after 4 AM KST. Cycle starts today 4 AM KST and ends tomorrow 4 AM KST.
+        cycleStartKST = new Date(Date.UTC(yyyy, month, date, 4, 0, 0));
+        cycleEndKST = new Date(Date.UTC(yyyy, month, date + 1, 3, 59, 59, 999));
+      }
+
+      // Convert back to UTC (subtract 9 hours)
+      const cycleStartUTC = new Date(cycleStartKST.getTime() - kstOffset);
+      const cycleEndUTC = new Date(cycleEndKST.getTime() - kstOffset);
+
+      const { count, error } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_phone', cleaned)
+        .gte('created_at', cycleStartUTC.toISOString())
+        .lte('created_at', cycleEndUTC.toISOString());
+
+      if (error) throw error;
+      setHasExistingOrderToday((count || 0) > 0);
+    } catch (err) {
+      console.error('오늘 영업 주기 내 주문 조회 오류:', err);
+      setHasExistingOrderToday(false);
+    }
+  };
+
+  useEffect(() => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length >= 9) {
+      const handler = setTimeout(() => {
+        checkExistingOrderToday(cleaned);
+      }, 500);
+      return () => clearTimeout(handler);
+    } else {
+      setHasExistingOrderToday(false);
+    }
+  }, [phone]);
 
   const handlePhoneLookup = async () => {
     const cleaned = phone.replace(/\D/g, '');
@@ -39,6 +101,7 @@ const OrderPage: React.FC = () => {
       return;
     }
     setLookupStatus('searching');
+    await checkExistingOrderToday(cleaned);
 
     try {
       // 1. Supabase customers 테이블에서 phone 컬럼으로 검색
@@ -136,7 +199,7 @@ const OrderPage: React.FC = () => {
   const groupedCartList = Object.values(groupedCart);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const basePrice = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const deliveryFee = deliveryMethod === 'courier' ? 3000 : 0;
+  const deliveryFee = (deliveryMethod === 'courier' && !hasExistingOrderToday) ? 3000 : 0;
   const totalPrice = basePrice + deliveryFee;
 
   // Handle browser push notification permission request
@@ -248,7 +311,7 @@ const OrderPage: React.FC = () => {
           notification_agreed: notificationAgreed,
           delivery_fee: deliveryFee,
           total_price: totalPrice,
-          status: '주문 완료'
+          status: '주문 미확인'
         })
         .select();
 
@@ -365,12 +428,17 @@ const OrderPage: React.FC = () => {
                   <th>상품 금액</th>
                   <td>{submittedData.basePrice.toLocaleString()}원</td>
                 </tr>
-                {submittedData.deliveryFee > 0 && (
+                {submittedData.deliveryFee > 0 ? (
                   <tr>
                     <th>배송비 (택배)</th>
                     <td>{submittedData.deliveryFee.toLocaleString()}원</td>
                   </tr>
-                )}
+                ) : submittedData.deliveryMethod === 'courier' || submittedData.deliveryMethod === '택배' ? (
+                  <tr>
+                    <th>배송비 (택배)</th>
+                    <td style={{ color: '#10b981', fontWeight: '800' }}>0원 (합배송 무료! 🎁)</td>
+                  </tr>
+                ) : null}
                 <tr>
                   <th>총 주문 금액</th>
                   <td className="highlight-price">{submittedData.totalPrice.toLocaleString()}원</td>
@@ -380,7 +448,7 @@ const OrderPage: React.FC = () => {
           </div>
 
           <div className="ordered-items-summary">
-            <h3>📦 주문 상품 상세 ({submittedData.items.length}종)</h3>
+            <h3>주문 상품 상세 ({submittedData.items.length}종)</h3>
             <ul>
               {submittedData.items.map((item: any, idx: number) => (
                 <li key={idx}>
@@ -439,7 +507,11 @@ const OrderPage: React.FC = () => {
             {deliveryMethod === 'courier' && (
               <div className="summary-delivery-fee-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', color: 'var(--text)', marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '12px' }}>
                 <span>배송비 (택배)</span>
-                <span>3,000원</span>
+                {hasExistingOrderToday ? (
+                  <span style={{ color: '#10b981', fontWeight: '800' }}>0원 (합배송 무료! 🎁)</span>
+                ) : (
+                  <span>3,000원</span>
+                )}
               </div>
             )}
             <div className="summary-total-price-box" style={{ borderTop: deliveryMethod === 'courier' ? 'none' : '2px solid var(--border)', marginTop: deliveryMethod === 'courier' ? '4px' : '8px' }}>
@@ -569,7 +641,11 @@ const OrderPage: React.FC = () => {
                     }}
                   />
                   <span className="option-title">📦 택배</span>
-                  <span className="option-desc">택배비 3,000원 추가 (계좌이체 전용)</span>
+                  <span className="option-desc">
+                    {hasExistingOrderToday
+                      ? '오늘 주문 건과 합배송되어 배송비 무료! 🎁'
+                      : '택배비 3,000원 추가 (계좌이체 전용)'}
+                  </span>
                 </label>
 
                 <label className={`delivery-option ${deliveryMethod === 'shop' ? 'active' : ''}`}>
@@ -683,7 +759,7 @@ const OrderPage: React.FC = () => {
             </div>
 
             <button type="submit" className="submit-order-btn">
-              도매 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
+              상품 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
             </button>
           </form>
         </div>

@@ -37,10 +37,44 @@ export default function MyOrdersPage() {
       case '미송':
         return { label: '미송', bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' };
       case '미송포장완료':
-        return { label: '미송완료', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' };
+        return { label: '미송완료', bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
       case '미포장':
       default:
         return { label: '준비중', bg: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)' };
+    }
+  };
+
+  const getCardStyle = (status: string) => {
+    switch (status) {
+      case '주문':
+      case '주문 미확인':
+      case '주문 완료':
+      case '미송':
+        return {
+          background: 'rgba(245, 158, 11, 0.03)',
+          border: '1.5px solid rgba(245, 158, 11, 0.2)'
+        };
+      case '주문 확인':
+        return {
+          background: 'rgba(234, 179, 8, 0.03)',
+          border: '1.5px solid rgba(234, 179, 8, 0.2)'
+        };
+      case '포장 완료':
+      case '미송포장완료':
+        return {
+          background: 'rgba(16, 185, 129, 0.03)',
+          border: '1.5px solid rgba(16, 185, 129, 0.2)'
+        };
+      case '주문 취소':
+        return {
+          background: 'rgba(156, 163, 175, 0.03)',
+          border: '1.5px solid rgba(156, 163, 175, 0.2)'
+        };
+      default:
+        return {
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1.5px solid var(--border)'
+        };
     }
   };
 
@@ -96,6 +130,42 @@ export default function MyOrdersPage() {
       alert(`주문서 조회 실패: ${err.message}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: number) => {
+    if (!window.confirm('정말 이 주문을 취소하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: '주문 취소' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      alert('주문이 취소되었습니다.');
+
+      // Refresh orders list
+      const parsedPhone = phone.replace(/\D/g, '');
+      if (parsedPhone) {
+        const { data, error: fetchError } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (*)
+          `)
+          .eq('customer_phone', parsedPhone)
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+        setOrders((data as any) || []);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`주문 취소 실패: ${err.message}`);
     }
   };
 
@@ -160,80 +230,132 @@ export default function MyOrdersPage() {
         </div>
       ) : (
         <div className="orders-list" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {orders.map(order => (
-            <div key={order.id} className="order-card glassmorphism" style={{ padding: '24px', borderRadius: '16px', border: '1.5px solid var(--border)', background: 'rgba(255,255,255,0.01)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--border)', paddingBottom: '16px', marginBottom: '16px' }}>
-                <div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>주문번호: {order.id}</span>
-                  <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-h)', marginTop: '4px' }}>
-                    주문 날짜: {new Date(order.created_at).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })}
+          {orders.map(order => {
+            const cardStyle = getCardStyle(order.status);
+            const isCancelled = order.status === '주문 취소';
+            return (
+              <div key={order.id} className="order-card glassmorphism" style={{
+                padding: '24px',
+                borderRadius: '16px',
+                border: cardStyle.border,
+                background: cardStyle.background,
+                opacity: isCancelled ? 0.5 : 1,
+                transition: 'opacity 0.2s ease-in-out'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--border)', paddingBottom: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>주문번호: {order.id}</span>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-h)', marginTop: '4px' }}>
+                      주문 날짜: {new Date(order.created_at).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '0.85rem',
+                      fontWeight: '800',
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      backgroundColor:
+                        order.status === '포장 완료' ? 'rgba(16, 185, 129, 0.15)' :
+                          order.status === '주문 확인' ? 'rgba(234, 179, 8, 0.15)' :
+                            isCancelled ? 'rgba(156, 163, 175, 0.15)' :
+                              'rgba(245, 158, 11, 0.15)',
+                      color:
+                        order.status === '포장 완료' ? '#10b981' :
+                          order.status === '주문 확인' ? '#eab308' :
+                            isCancelled ? '#9ca3af' :
+                              '#f59e0b'
+                    }}>
+                      {order.status === '주문' ? '주문 미확인' : order.status}
+                    </span>
                   </div>
                 </div>
-                <span style={{
-                  fontSize: '0.85rem',
-                  fontWeight: '800',
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  backgroundColor: order.status === '포장 완료' ? 'rgba(16, 185, 129, 0.15)' : order.status === '주문 확인' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  color: order.status === '포장 완료' ? '#10b981' : order.status === '주문 확인' ? '#3b82f6' : '#ef4444'
-                }}>
-                  {order.status}
-                </span>
-              </div>
 
-              {/* 주문 상품 상세 */}
-              <div className="order-items" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {order.order_items.map(item => {
-                  const statusInfo = getStatusLabelAndStyle(item.item_status);
-                  return (
-                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.01)' }}>
-                      <img src={item.image} alt={item.product_name} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>{item.product_name}</h4>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>옵션: {item.variant_name}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-h)' }}>{item.quantity}개</div>
-                        
-                        {/* 상태 및 시간 뱃지 */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                          <span style={{
-                            fontSize: '0.8rem',
-                            fontWeight: '800',
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            backgroundColor: statusInfo.bg,
-                            color: statusInfo.color
-                          }}>
-                            {statusInfo.label}
-                          </span>
-                          {item.status_updated_at && (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                              {formatDateTime(item.status_updated_at)}
+                {/* 주문 상품 상세 */}
+                <div className="order-items" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {order.order_items.map(item => {
+                    const statusInfo = getStatusLabelAndStyle(item.item_status);
+                    return (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.01)' }}>
+                        <img src={item.image} alt={item.product_name} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>{item.product_name}</h4>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>옵션: {item.variant_name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-h)' }}>{item.quantity}개</div>
+
+                          {/* 상태 및 시간 뱃지 */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                            <span style={{
+                              fontSize: '0.8rem',
+                              fontWeight: '800',
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: statusInfo.bg,
+                              color: statusInfo.color
+                            }}>
+                              {statusInfo.label}
                             </span>
-                          )}
+                            {item.status_updated_at && (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {formatDateTime(item.status_updated_at)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
 
-              {/* 하단 요약 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border)', fontSize: '0.95rem', fontWeight: '700' }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', marginRight: '8px' }}>배송:</span>
-                  <span style={{ color: 'var(--text-h)' }}>{getDeliveryLabel(order.delivery_method)}</span>
-                  <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>|</span>
-                  <span style={{ color: 'var(--text-muted)', marginRight: '8px' }}>결제:</span>
-                  <span style={{ color: 'var(--text-h)' }}>{getPaymentLabel(order.payment_method)}</span>
-                </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: '800' }}>
-                  총 <span style={{ color: 'var(--accent)' }}>{order.total_price.toLocaleString()}원</span>
+                {/* 하단 요약 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border)', fontSize: '0.95rem', fontWeight: '700' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', marginRight: '8px' }}>배송:</span>
+                    <span style={{ color: 'var(--text-h)' }}>{getDeliveryLabel(order.delivery_method)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', marginRight: '8px' }}>결제:</span>
+                      <span style={{ color: 'var(--text-h)' }}>{getPaymentLabel(order.payment_method)}</span>
+                    </div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '800' }}>
+                      총 <span style={{ color: 'var(--accent)' }}>{order.total_price.toLocaleString()}원</span>
+                    </div>
+                  </div>
+                  {!isCancelled && (order.status === '주문' || order.status === '주문 미확인' || order.status === '주문 확인') && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                      <button
+                        onClick={() => handleCancelOrder(order.id)}
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: '800',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(156, 163, 175, 0.4)',
+                          backgroundColor: 'rgba(156, 163, 175, 0.05)',
+                          color: '#9ca3af',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(156, 163, 175, 0.15)';
+                          e.currentTarget.style.color = 'var(--text-h)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(156, 163, 175, 0.05)';
+                          e.currentTarget.style.color = '#9ca3af';
+                        }}
+                      >
+                        주문 취소
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

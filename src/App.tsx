@@ -19,6 +19,8 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const isAdminOrders = location.pathname === '/admin/orders';
+  const isAdminProducts = location.pathname === '/admin';
 
   return (
     <header className="main-header">
@@ -35,12 +37,25 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
             </>
           )}
         </nav>
-        {!isAdmin && (
+        {!isAdmin ? (
           <div className="header-actions">
             <button className="cart-text-btn" onClick={onCartClick} aria-label="담아둔 상품 주문하기">
               <span className="cart-btn-desktop">📦 담아둔 상품 주문하기 ({totalItems}개)</span>
               <span className="cart-btn-mobile">📦 장바구니 ({totalItems}개)</span>
             </button>
+          </div>
+        ) : (
+          <div className="header-actions">
+            {isAdminProducts && (
+              <Link to="/admin/orders" className="exit-admin-btn-separated" style={{ margin: 0 }}>
+                📋 주문 현황 보기 →
+              </Link>
+            )}
+            {isAdminOrders && (
+              <Link to="/admin" className="exit-admin-btn-separated" style={{ margin: 0 }}>
+                ← 📂 상품 등록/관리 보기
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -109,7 +124,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                     <h3>{product.name}</h3>
                     <span className="cart-product-group-price">{product.price.toLocaleString()}원</span>
                   </div>
-                  
+
                   <div className="cart-product-group-items">
                     {items.map((item) => (
                       <div key={item.variant.id} className="cart-item">
@@ -122,9 +137,9 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             <button onClick={() => handleQuantityChange(item, 1)} style={{ fontSize: '1.3rem', padding: '6px 14px', fontWeight: 'bold' }}>+</button>
                           </div>
                         </div>
-                        <button 
-                          className="item-remove-text-btn" 
-                          onClick={() => removeFromCart(item.product.id, item.variant.id)} 
+                        <button
+                          className="item-remove-text-btn"
+                          onClick={() => removeFromCart(item.product.id, item.variant.id)}
                           aria-label="이 항목 삭제"
                         >
                           삭제
@@ -152,12 +167,12 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               <button className="clear-btn" onClick={clearCart} style={{ fontSize: '1.1rem', padding: '16px' }}>
                 전체 비우기
               </button>
-              <button 
-                className="checkout-btn" 
+              <button
+                className="checkout-btn"
                 onClick={() => {
                   onClose();
                   navigate('/order');
-                }} 
+                }}
                 style={{ fontSize: '1.25rem', padding: '16px', fontWeight: '800' }}
               >
                 도매 주문 접수하기
@@ -222,7 +237,7 @@ function MainLayout() {
               // 중복 알림 방지를 위해 구독 정보 정리
               localStorage.removeItem('last_order_id');
               localStorage.removeItem('notification_agreed');
-              
+
               if (activeChannel) {
                 supabase.removeChannel(activeChannel);
                 activeChannel = null;

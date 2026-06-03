@@ -76,12 +76,18 @@ export default function AdminOrdersPage() {
   // Active Tab State: 'order' (일반) | 'misong' (미송)
   const [activeTab, setActiveTab] = useState<'order' | 'misong'>('order');
 
+  // Collapsible Date Filter Toggle
+  const [showDateFilter, setShowDateFilter] = useState<boolean>(false);
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   // Checked Items State for packing verification (key is item.id)
   const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Lightbox State
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -109,31 +115,73 @@ export default function AdminOrdersPage() {
   // Helper for Collapsed Status Color Mapping
   const getStatusColor = (status: string) => {
     switch (status) {
+      case '주문 미확인':
       case '주문 완료':
       case '미송':
         return {
-          bg: 'rgba(249, 115, 22, 0.08)',
-          border: 'rgba(249, 115, 22, 0.3)',
-          color: '#ea580c'
+          bg: 'rgba(245, 158, 11, 0.15)',
+          border: 'rgba(245, 158, 11, 0.4)',
+          color: '#f59e0b'
         };
       case '주문 확인':
         return {
-          bg: 'rgba(234, 179, 8, 0.08)',
-          border: 'rgba(234, 179, 8, 0.3)',
-          color: '#ca8a04'
+          bg: 'rgba(234, 179, 8, 0.15)',
+          border: 'rgba(234, 179, 8, 0.4)',
+          color: '#eab308'
         };
       case '포장 완료':
       case '미송포장완료':
         return {
-          bg: 'rgba(59, 130, 246, 0.08)',
-          border: 'rgba(59, 130, 246, 0.3)',
-          color: '#2563eb'
+          bg: 'rgba(16, 185, 129, 0.15)',
+          border: 'rgba(16, 185, 129, 0.4)',
+          color: '#10b981'
+        };
+      case '주문 취소':
+        return {
+          bg: 'rgba(156, 163, 175, 0.15)',
+          border: 'rgba(156, 163, 175, 0.4)',
+          color: '#9ca3af'
         };
       default:
         return {
           bg: 'var(--code-bg)',
           border: 'var(--border)',
           color: 'var(--text-h)'
+        };
+    }
+  };
+
+  // Helper for card background and border colors matching status
+  const getCardStyle = (status: string) => {
+    switch (status) {
+      case '주문':
+      case '주문 미확인':
+      case '주문 완료':
+      case '미송':
+        return {
+          background: 'rgba(245, 158, 11, 0.03)',
+          border: '1.5px solid rgba(245, 158, 11, 0.2)'
+        };
+      case '주문 확인':
+        return {
+          background: 'rgba(234, 179, 8, 0.03)',
+          border: '1.5px solid rgba(234, 179, 8, 0.2)'
+        };
+      case '포장 완료':
+      case '미송포장완료':
+        return {
+          background: 'rgba(16, 185, 129, 0.03)',
+          border: '1.5px solid rgba(16, 185, 129, 0.2)'
+        };
+      case '주문 취소':
+        return {
+          background: 'rgba(156, 163, 175, 0.03)',
+          border: '1.5px solid rgba(156, 163, 175, 0.2)'
+        };
+      default:
+        return {
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1.5px solid var(--border)'
         };
     }
   };
@@ -151,6 +199,22 @@ export default function AdminOrdersPage() {
     if (method === 'uncle') return '삼촌 대납';
     if (method === 'shopProxy') return '매장 대납';
     return method;
+  };
+
+  const formatPackedTime = (isoString: string | null | undefined) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '';
+      const yy = String(date.getFullYear()).slice(-2);
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      return `${yy}년 ${mm}월 ${dd}일 ${hh}시 ${min}분`;
+    } catch (e) {
+      return '';
+    }
   };
 
   // Fetch Orders from Supabase
@@ -243,6 +307,11 @@ export default function AdminOrdersPage() {
       fetchOrders();
     }
   }, [isAuthenticated, filterDays, activeTab]);
+
+  // 3. Reset pagination page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterDays, activeTab, searchQuery]);
 
   // Auth Handler
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -459,10 +528,29 @@ export default function AdminOrdersPage() {
 
           if (error) throw error;
 
-          setOrders(prev =>
-            prev.map(o => (o.id === orderId ? { ...o, status: newStatus } : o))
-          );
+          // 만약 기존 상태가 '포장 완료'였고 주문 확인 등으로 롤백하는 경우
+          if (order.status === '포장 완료') {
+            // order_items 진행상태 미포장으로 초기화, 체크박스 초기화, 완료 시간 초기화
+            const { error: itemsError } = await supabase
+              .from('order_items')
+              .update({
+                item_status: '미포장',
+                status_updated_at: null,
+                is_checked: false
+              })
+              .eq('order_id', orderId);
+            if (itemsError) throw itemsError;
+
+            // 이월되었던 미송 주문서 및 미송 상세 삭제 (Cascade 옵션으로 misong_order_items도 자동 삭제됨)
+            const { error: deleteMisongError } = await supabase
+              .from('misong_orders')
+              .delete()
+              .eq('original_order_id', orderId);
+            if (deleteMisongError) throw deleteMisongError;
+          }
+
           alert(`주문 상태가 "${newStatus}"(으)로 변경되었습니다.`);
+          await fetchOrders();
         } catch (err: any) {
           alert(`상태 변경 중 오류: ${err.message}`);
         } finally {
@@ -542,10 +630,40 @@ export default function AdminOrdersPage() {
 
           if (error) throw error;
 
-          setOrders(prev =>
-            prev.map(o => (o.id === orderId ? { ...o, status: newStatus } : o))
-          );
+          // 만약 기존 상태가 '미송포장완료'였고 '미송'으로 롤백하는 경우
+          if (order.status === '미송포장완료') {
+            const items = order.order_items || [];
+
+            // misong_order_items 상태 초기화, 체크박스 초기화, 완료 시간 초기화
+            const { error: misongItemsError } = await supabase
+              .from('misong_order_items')
+              .update({
+                status: '미송',
+                status_updated_at: null,
+                is_checked: false
+              })
+              .eq('misong_order_id', orderId);
+            if (misongItemsError) throw misongItemsError;
+
+            // 원본 주문서의 order_items 상태를 다시 '미송'으로 복구
+            const originalItemIds = items
+              .map((item: any) => item.original_item_id)
+              .filter(Boolean);
+
+            if (originalItemIds.length > 0) {
+              const { error: originalItemsError } = await supabase
+                .from('order_items')
+                .update({
+                  item_status: '미송',
+                  status_updated_at: null
+                })
+                .in('id', originalItemIds);
+              if (originalItemsError) throw originalItemsError;
+            }
+          }
+
           alert(`미송 주문 상태가 "${newStatus}"(으)로 변경되었습니다.`);
+          await fetchOrders();
         } catch (err: any) {
           alert(`상태 변경 중 오류: ${err.message}`);
         } finally {
@@ -564,10 +682,30 @@ export default function AdminOrdersPage() {
     return `${yy}년 ${mm}월 ${dd}일`;
   };
 
+  // Get filtered orders based on search query
+  const getFilteredOrders = () => {
+    const trimmed = searchQuery.trim();
+    const cleanedQuery = trimmed.replace(/\D/g, '');
+    const lowerQuery = trimmed.toLowerCase();
+
+    return orders.filter(order => {
+      if (!trimmed) return true;
+
+      const phoneMatch = cleanedQuery.length > 0 && (
+        order.customer_phone.replace(/\D/g, '').includes(cleanedQuery) ||
+        (order.customers?.phone || '').replace(/\D/g, '').includes(cleanedQuery)
+      );
+
+      const shopNameMatch = (order.customers?.shop_name || '').toLowerCase().includes(lowerQuery);
+
+      return phoneMatch || shopNameMatch;
+    });
+  };
+
   // Group orders by formatted date header
-  const getGroupedOrders = () => {
+  const getGroupedOrders = (paginatedOrders: Order[]) => {
     const groups: Record<string, Order[]> = {};
-    orders.forEach(order => {
+    paginatedOrders.forEach(order => {
       const header = formatDateHeader(order.created_at);
       if (!groups[header]) {
         groups[header] = [];
@@ -620,22 +758,19 @@ export default function AdminOrdersPage() {
     );
   }
 
-  const groupedOrders = getGroupedOrders();
+  const filteredOrders = getFilteredOrders();
+  const totalPages = Math.ceil(filteredOrders.length / 8);
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+  const paginatedOrders = filteredOrders.slice((safeCurrentPage - 1) * 8, safeCurrentPage * 8);
+  const groupedOrders = getGroupedOrders(paginatedOrders);
 
   return (
     <div className="admin-dashboard-container">
-      {/* Top Bar Navigation */}
-      <div className="admin-top-bar" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <Link to="/admin" className="exit-admin-btn-separated">
-          ◀ 상품 등록/관리 대시보드로 이동
-        </Link>
-      </div>
-
       {/* Admin Header */}
       <header className="admin-header glassmorphism">
         <div className="admin-header-left">
           <span className="admin-title-badge">ORDERS</span>
-          <h1>도매 주문 현황 목록</h1>
+          <h1>주문 현황</h1>
         </div>
       </header>
 
@@ -646,64 +781,132 @@ export default function AdminOrdersPage() {
           style={{
             padding: '12px 24px',
             borderRadius: '10px',
-            border: 'none',
-            backgroundColor: activeTab === 'order' ? 'var(--accent)' : 'rgba(255, 255, 255, 0.05)',
-            color: 'white',
+            border: activeTab === 'order' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
+            backgroundColor: activeTab === 'order' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
+            color: activeTab === 'order' ? '#000000' : '#4b5563',
             fontWeight: '800',
             fontSize: '1rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
           }}
         >
-          📦 일반 주문 목록
+          📦 주문 목록
         </button>
         <button
           onClick={() => setActiveTab('misong')}
           style={{
             padding: '12px 24px',
             borderRadius: '10px',
-            border: 'none',
-            backgroundColor: activeTab === 'misong' ? 'var(--accent)' : 'rgba(255, 255, 255, 0.05)',
-            color: 'white',
+            border: activeTab === 'misong' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
+            backgroundColor: activeTab === 'misong' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
+            color: activeTab === 'misong' ? '#000000' : '#4b5563',
             fontWeight: '800',
             fontSize: '1rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
           }}
         >
-          ⏳ 미송 주문 목록
+          ⏳ 미송 목록
         </button>
       </div>
 
       {/* Date Filter Choices */}
-      <div className="orders-filter-bar glassmorphism" style={{ padding: '16px', borderRadius: '14px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        {/* <span style={{ fontWeight: '800', fontSize: '0.95rem' }}>기간</span> */}
-        <div className="filter-buttons" style={{ display: 'flex', gap: '8px' }}>
+      <div className="orders-filter-bar glassmorphism" style={{ 
+        padding: '16px', 
+        borderRadius: '14px', 
+        marginBottom: '24px', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '12px',
+        alignItems: 'center'
+      }}>
+        {/* Row 1: 상호 및 전화번호 검색 입력창 & 필터 토글 버튼 */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          width: '100%',
+          maxWidth: '500px',
+          boxSizing: 'border-box'
+        }}>
+          <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span>
+          <input
+            type="text"
+            placeholder="상호 또는 전화번호 검색"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              padding: '8px 14px',
+              borderRadius: '20px',
+              border: '1.5px solid var(--border)',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-h)',
+              fontSize: '0.9rem',
+              fontWeight: '700',
+              outline: 'none',
+              transition: 'border-color 0.2s',
+              width: '100%'
+            }}
+          />
           <button
-            className={`filter-tag-btn ${filterDays === '3' ? 'active' : ''}`}
-            onClick={() => setFilterDays('3')}
+            onClick={() => setShowDateFilter(!showDateFilter)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '20px',
+              border: '1px solid var(--border)',
+              backgroundColor: showDateFilter ? 'var(--accent)' : 'transparent',
+              color: showDateFilter ? 'white' : 'var(--text-h)',
+              fontWeight: '800',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
           >
-            최근 3일
-          </button>
-          <button
-            className={`filter-tag-btn ${filterDays === '7' ? 'active' : ''}`}
-            onClick={() => setFilterDays('7')}
-          >
-            최근 7일
-          </button>
-          <button
-            className={`filter-tag-btn ${filterDays === '30' ? 'active' : ''}`}
-            onClick={() => setFilterDays('30')}
-          >
-            최근 30일
-          </button>
-          <button
-            className={`filter-tag-btn ${filterDays === 'all' ? 'active' : ''}`}
-            onClick={() => setFilterDays('all')}
-          >
-            전체 보기
+            {showDateFilter ? '필터 닫기 ⚙️' : '필터 ⚙️'}
           </button>
         </div>
+
+        {/* 접혀있는 기간 필터 */}
+        {showDateFilter && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', alignItems: 'center', marginTop: '4px', paddingTop: '12px', borderTop: '1px dashed var(--border)' }}>
+            {/* Row 1: 기간 필터 버튼 그룹 (최근 3일, 최근 7일, 최근 30일 - 가운데 정렬) */}
+            <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
+              <button
+                className={`filter-tag-btn ${filterDays === '3' ? 'active' : ''}`}
+                onClick={() => setFilterDays('3')}
+              >
+                최근 3일
+              </button>
+              <button
+                className={`filter-tag-btn ${filterDays === '7' ? 'active' : ''}`}
+                onClick={() => setFilterDays('7')}
+              >
+                최근 7일
+              </button>
+              <button
+                className={`filter-tag-btn ${filterDays === '30' ? 'active' : ''}`}
+                onClick={() => setFilterDays('30')}
+              >
+                최근 30일
+              </button>
+            </div>
+
+            {/* Row 2: 전체 보기 버튼 */}
+            <button
+              className={`filter-tag-btn ${filterDays === 'all' ? 'active' : ''}`}
+              onClick={() => setFilterDays('all')}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                textAlign: 'center'
+              }}
+            >
+              전체 보기
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Orders List Container */}
@@ -718,13 +921,17 @@ export default function AdminOrdersPage() {
             <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>해당 기간에 접수된 주문이 없습니다.</p>
             <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>주문이 들어오면 실시간으로 여기에 기록됩니다.</p>
           </div>
+        ) : Object.keys(groupedOrders).length === 0 ? (
+          <div className="empty-products-msg glassmorphism" style={{ padding: '80px 20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>검색 결과가 없습니다.</p>
+            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>검색어를 확인한 후 다시 입력해 주세요.</p>
+          </div>
         ) : (
           <div className="grouped-orders-container" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             {Object.keys(groupedOrders).map(dateHeader => (
               <div key={dateHeader} className="date-order-group">
                 {/* Date Header Tag */}
                 <div className="date-group-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <span className="calendar-icon" style={{ fontSize: '1.3rem' }}>📅</span>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: '800', margin: 0, color: 'var(--text-h)' }}>{dateHeader}</h2>
                   <span className="order-count-badge" style={{ backgroundColor: 'var(--accent)', color: 'white', fontSize: '0.85rem', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }}>
                     {groupedOrders[dateHeader].length}건
@@ -735,8 +942,17 @@ export default function AdminOrdersPage() {
                 <div className="orders-cards-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   {groupedOrders[dateHeader].map(order => {
                     const customer = order.customers;
+                    const cardStyle = getCardStyle(order.status);
+                    const isCancelled = order.status === '주문 취소';
                     return (
-                      <div key={order.id} className="order-sheet-card glassmorphism" style={{ border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px', background: 'rgba(255, 255, 255, 0.02)' }}>
+                      <div key={order.id} className="order-sheet-card glassmorphism" style={{
+                        border: cardStyle.border,
+                        borderRadius: '16px',
+                        padding: '24px',
+                        background: cardStyle.background,
+                        opacity: isCancelled ? 0.5 : 1,
+                        transition: 'opacity 0.2s ease-in-out'
+                      }}>
 
                         {/* Order Header / Client Meta */}
                         <div className="order-sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', paddingBottom: '16px', borderBottom: '1.5px solid var(--border)' }}>
@@ -753,79 +969,100 @@ export default function AdminOrdersPage() {
                           {/* Status and Action Row */}
                           <div className="order-status-controller" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>진행 상태:</span>
                               <select
-                                value={order.status}
+                                value={order.status === '주문' ? '주문 미확인' : order.status}
                                 onChange={(e) => handleStatusChange(order.id, e.target.value)}
                                 style={{
-                                  padding: '8px 12px',
+                                  padding: '6px 16px 6px 8px',
                                   borderRadius: '8px',
-                                  border: '1.5px solid var(--border)',
-                                  backgroundColor: 'var(--code-bg)',
-                                  color: 'var(--text-h)',
                                   fontWeight: '800',
                                   fontSize: '0.9rem',
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  outline: 'none',
+                                  width:
+                                    order.status === '미송' ? '74px' :
+                                    order.status === '주문' || order.status === '주문 미확인' || order.status === '미송포장완료' ? '138px' : '112px',
+                                  border:
+                                    order.status === '포장 완료' || order.status === '미송포장완료' ? '1.5px solid rgba(16, 185, 129, 0.4)' :
+                                      order.status === '주문 확인' ? '1.5px solid rgba(234, 179, 8, 0.4)' :
+                                        order.status === '주문 취소' ? '1.5px solid rgba(156, 163, 175, 0.4)' :
+                                          '1.5px solid rgba(245, 158, 11, 0.4)',
+                                  backgroundColor:
+                                    order.status === '포장 완료' || order.status === '미송포장완료' ? 'rgba(16, 185, 129, 0.15)' :
+                                      order.status === '주문 확인' ? 'rgba(234, 179, 8, 0.15)' :
+                                        order.status === '주문 취소' ? 'rgba(156, 163, 175, 0.15)' :
+                                          'rgba(245, 158, 11, 0.15)',
+                                  color:
+                                    order.status === '포장 완료' || order.status === '미송포장완료' ? '#10b981' :
+                                      order.status === '주문 확인' ? '#eab308' :
+                                        order.status === '주문 취소' ? '#9ca3af' :
+                                          '#f59e0b',
+                                  transition: 'all 0.2s ease-in-out'
                                 }}
                               >
                                 {activeTab === 'order' ? (
                                   <>
-                                    <option value="주문 완료">주문 완료</option>
-                                    <option value="주문 확인">주문 확인</option>
-                                    <option value="포장 완료">포장 완료</option>
+                                    <option value="주문 미확인" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 미확인</option>
+                                    <option value="주문 확인" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 확인</option>
+                                    <option value="포장 완료" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>포장 완료</option>
+                                    <option value="주문 취소" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 취소</option>
                                   </>
                                 ) : (
                                   <>
-                                    <option value="미송">미송</option>
-                                    <option value="미송포장완료">미송포장완료</option>
+                                    <option value="미송" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>미송</option>
+                                    <option value="미송포장완료" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>미송포장완료</option>
                                   </>
                                 )}
                               </select>
                             </div>
-
-                            {/* Color Tag based on status */}
-                            <span style={{
-                              fontSize: '0.8rem',
-                              fontWeight: '800',
-                              padding: '4px 10px',
-                              borderRadius: '20px',
-                              backgroundColor:
-                                order.status === '포장 완료' || order.status === '미송포장완료' ? 'rgba(16, 185, 129, 0.15)' :
-                                  order.status === '주문 확인' ? 'rgba(59, 130, 246, 0.15)' :
-                                    order.status === '미송' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                              color:
-                                order.status === '포장 완료' || order.status === '미송포장완료' ? '#10b981' :
-                                  order.status === '주문 확인' ? '#3b82f6' :
-                                    order.status === '미송' ? '#f59e0b' : '#ef4444'
-                            }}>
-                              {order.status}
-                            </span>
                           </div>
                         </div>
 
-                        {/* Summary Bar & Toggle Details Button */}
-                        <div className="order-sheet-summary-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', borderRadius: '12px', border: '1.5px solid var(--border)', background: 'rgba(255, 255, 255, 0.01)', flexWrap: 'wrap', gap: '12px' }}>
-                          <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-h)' }}>
-                            <span style={{ color: 'var(--accent)' }}>[{getDeliveryLabel(order.delivery_method, order.shop_delivery_info)}]</span>{' '}
-                            <span style={{ color: 'var(--text-h)' }}>[{getPaymentLabel(order.payment_method)}]</span>{' '}
-                            <span style={{ color: 'var(--accent)', marginLeft: '8px' }}>{order.total_price.toLocaleString()}원</span>
+                        <div
+                          className="order-sheet-summary-bar"
+                          onClick={() => toggleOrderExpand(order.id)}
+                          style={{
+                            marginTop: '16px',
+                            padding: '16px',
+                            borderRadius: '12px',
+                            border: '1.5px solid var(--border)',
+                            background: 'rgba(255, 255, 255, 0.01)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease-in-out'
+                          }}
+                        >
+                          {/* Row 1 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--accent)', fontWeight: '800', fontSize: '1.05rem' }}>
+                              [{getDeliveryLabel(order.delivery_method, order.shop_delivery_info)}]
+                            </span>
+                            <span style={{ color: 'var(--accent)', fontWeight: '900', fontSize: '1.15rem' }}>
+                              {order.total_price.toLocaleString()}원
+                            </span>
                           </div>
-                          <button
-                            onClick={() => toggleOrderExpand(order.id)}
-                            style={{
-                              padding: '6px 14px',
-                              borderRadius: '20px',
-                              border: '1.5px solid var(--border)',
-                              backgroundColor: expandedOrders[order.id] ? 'var(--accent)' : 'transparent',
-                              color: expandedOrders[order.id] ? 'white' : 'var(--text-h)',
-                              fontWeight: '800',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease-in-out'
-                            }}
-                          >
-                            {expandedOrders[order.id] ? '▲ 접기' : '▼ 상세보기'}
-                          </button>
+                          {/* Row 2 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-h)', fontWeight: '800', fontSize: '1.05rem' }}>
+                              [{getPaymentLabel(order.payment_method)}]
+                            </span>
+                            <span
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                border: '1.5px solid var(--border)',
+                                backgroundColor: expandedOrders[order.id] ? 'var(--accent)' : 'transparent',
+                                color: expandedOrders[order.id] ? 'white' : 'var(--text-h)',
+                                fontWeight: '800',
+                                fontSize: '0.85rem',
+                                transition: 'all 0.2s ease-in-out'
+                              }}
+                            >
+                              {expandedOrders[order.id] ? '▲ 접기' : '▼ 상세보기'}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Order Details Grid (Toggle expandable) */}
@@ -899,10 +1136,19 @@ export default function AdminOrdersPage() {
                                 }}
                               >
                                 <span style={{ fontWeight: '800', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  📦 주문 상품 상세 (총 {totalQty}개)
+                                  {activeTab === 'order' ? '주문 상품 상세' : '미송 상품 상세'} (총 {totalQty}개)
                                 </span>
-                                <span style={{ fontSize: '0.85rem', fontWeight: '800' }}>
-                                  {isExpanded ? '▲ 접기' : '▼ 내역 보기'}
+                                <span style={{
+                                  padding: '6px 14px',
+                                  borderRadius: '20px',
+                                  border: `1.5px solid ${colors.border}`,
+                                  backgroundColor: isExpanded ? colors.color : 'transparent',
+                                  color: isExpanded ? 'white' : colors.color,
+                                  fontWeight: '800',
+                                  fontSize: '0.85rem',
+                                  transition: 'all 0.2s ease-in-out'
+                                }}>
+                                  {isExpanded ? '▲ 접기' : '▼ 상세보기'}
                                 </span>
                               </div>
                             );
@@ -922,6 +1168,12 @@ export default function AdminOrdersPage() {
                                     <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: '700' }}>{item.product_id ? `ID: ${item.product_id}` : '삭제된 상품'}</span>
                                     <h5 style={{ margin: '2px 0', fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>{item.product_name}</h5>
                                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>옵션: <strong>{item.variant_name}</strong></span>
+                                    {((activeTab === 'order' && (item.item_status === '포장완료' || item.item_status === '미송포장완료')) ||
+                                      (activeTab === 'misong' && item.status === '미송포장완료')) && item.status_updated_at && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: '800' }}>
+                                          ⏱ {activeTab === 'order' && item.item_status === '미송포장완료' || activeTab === 'misong' ? '미송포장완료' : '포장완료'}: {formatPackedTime(item.status_updated_at)}
+                                        </div>
+                                      )}
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
                                     <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>
@@ -948,8 +1200,13 @@ export default function AdminOrdersPage() {
                                           padding: '2px 8px',
                                           borderRadius: '12px',
                                           backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                                          color: '#10b981'
-                                        }}>포장완료</span>
+                                          color: '#10b981',
+                                          flexShrink: 0
+                                        }}>
+                                          {activeTab === 'order'
+                                            ? (item.item_status === '미송포장완료' ? '미송포장완료' : '포장완료')
+                                            : '미송포장완료'}
+                                        </span>
                                       )}
                                     <input
                                       type="checkbox"
@@ -979,6 +1236,7 @@ export default function AdminOrdersPage() {
                                           .then(({ error }) => {
                                             if (error) {
                                               console.error('Failed to update check state:', error);
+                                              alert(`체크 상태 저장 실패: ${error.message}\n(Supabase 스키마 캐시 문제일 경우, Supabase SQL Editor에서 NOTIFY pgrst, 'reload schema'; 명령을 실행해 주세요.)`);
                                             }
                                           });
                                       }}
@@ -1001,6 +1259,51 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px', marginBottom: '16px' }}>
+            <button
+              disabled={safeCurrentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                backgroundColor: safeCurrentPage === 1 ? 'transparent' : 'var(--accent)',
+                color: safeCurrentPage === 1 ? 'var(--text-muted)' : 'white',
+                fontWeight: '800',
+                cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                opacity: safeCurrentPage === 1 ? 0.5 : 1,
+                transition: 'all 0.2s',
+                fontSize: '0.9rem'
+              }}
+            >
+              이전 페이지
+            </button>
+            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>
+              {safeCurrentPage} / {totalPages} 페이지 (총 {filteredOrders.length}건)
+            </span>
+            <button
+              disabled={safeCurrentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                backgroundColor: safeCurrentPage === totalPages ? 'transparent' : 'var(--accent)',
+                color: safeCurrentPage === totalPages ? 'var(--text-muted)' : 'white',
+                fontWeight: '800',
+                cursor: safeCurrentPage === totalPages ? 'not-allowed' : 'pointer',
+                opacity: safeCurrentPage === totalPages ? 0.5 : 1,
+                transition: 'all 0.2s',
+                fontSize: '0.9rem'
+              }}
+            >
+              다음 페이지
+            </button>
           </div>
         )}
       </main>
