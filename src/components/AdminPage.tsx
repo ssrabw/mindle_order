@@ -1,0 +1,1016 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { supabase } from '../api/supabase';
+
+interface VariantInput {
+  colorName: string;
+  imageUrl: string;
+  isUploading: boolean;
+  error?: string;
+}
+
+interface ProductFromDb {
+  id: number;
+  name: string;
+  price: number;
+  description: string;
+  category: string;
+  main_images: string[];
+  is_visible: boolean;
+  created_at: string;
+}
+
+interface VariantFromDb {
+  id: string;
+  product_id: number;
+  color_name: string;
+  image: string;
+  is_visible: boolean;
+}
+
+interface InlineVariantInput {
+  colorName: string;
+  imageUrl: string;
+  isUploading: boolean;
+  progress: string;
+}
+
+// Cookie Helpers
+const setCookie = (name: string, value: string, days: number) => {
+  const date = new Date();
+  date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+  const expires = "; expires=" + date.toUTCString();
+  document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
+};
+
+const getCookie = (name: string): string | null => {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+};
+
+const deleteCookie = (name: string) => {
+  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+};
+
+export default function AdminPage() {
+
+  // Authentication State
+  const [password, setPassword] = useState<string>('');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
+  const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
+
+  // Tab State: 'manage' | 'register' | 'customers'
+  const [activeTab, setActiveTab] = useState<'manage' | 'register' | 'customers'>('manage');
+
+  // DB Products and Variants for Management
+  const [dbProducts, setDbProducts] = useState<ProductFromDb[]>([]);
+  const [dbVariants, setDbVariants] = useState<VariantFromDb[]>([]);
+  const [isLoadingDb, setIsLoadingDb] = useState<boolean>(false);
+
+  // Inline inputs for adding variants (key is product_id)
+  const [inlineVariantInputs, setInlineVariantInputs] = useState<Record<number, InlineVariantInput>>({});
+
+  // Product ID (Generated on load/reset as a 5-digit number)
+  const [productId, setProductId] = useState<number>(() => Math.floor(10000 + Math.random() * 90000));
+
+  // Product Form States
+  const [name, setName] = useState<string>('');
+  const [price, setPrice] = useState<string>('');
+  const [category, setCategory] = useState<string>('스카프');
+  const [customCategory, setCustomCategory] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+
+  // Main Images States
+  const [mainImageUrls, setMainImageUrls] = useState<string[]>([]);
+  const [isMainUploading, setIsMainUploading] = useState<boolean>(false);
+  const [mainUploadProgress, setMainUploadProgress] = useState<string>('');
+
+  // Variants (Color options) States
+  const [variants, setVariants] = useState<VariantInput[]>([]);
+  const [isVarUploading, setIsVarUploading] = useState<boolean>(false);
+  const [varUploadProgress, setVarUploadProgress] = useState<string>('');
+
+  // General Register State
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Fetch DB Products and Variants
+  const fetchProductsAndVariants = async () => {
+    setIsLoadingDb(true);
+    try {
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (productsError) throw productsError;
+
+      const { data: variantsData, error: variantsError } = await supabase
+        .from('product_variants')
+        .select('*');
+
+      if (variantsError) throw variantsError;
+
+      setDbProducts(productsData || []);
+      setDbVariants(variantsData || []);
+    } catch (err: any) {
+      console.error('Error fetching data from Supabase:', err);
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  // 1. Session verification on mount
+  useEffect(() => {
+    const verifyAuth = async () => {
+      try {
+        const hasCookie = getCookie('admin_auth') === 'true';
+        if (!hasCookie) {
+          setIsAuthenticated(false);
+          setIsVerifyingSession(false);
+          return;
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.log('No active Supabase Auth session. Clearing cookie.');
+          deleteCookie('admin_auth');
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error('Session verify error:', err);
+        setIsAuthenticated(false);
+      } finally {
+        setIsVerifyingSession(false);
+      }
+    };
+
+    verifyAuth();
+  }, []);
+
+  // 2. Fetch data when authenticated
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'manage') {
+      fetchProductsAndVariants();
+    }
+  }, [isAuthenticated, activeTab]);
+
+  // Product visibility toggle
+  const handleToggleProductVisibility = async (productId: number, currentVisibility: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_visible: !currentVisibility })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      setDbProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, is_visible: !currentVisibility } : p))
+      );
+    } catch (err: any) {
+      alert(`상품 노출 상태 변경 중 오류: ${err.message}`);
+    }
+  };
+
+  // Product deletion
+  const handleDeleteProduct = async (productId: number, productName: string) => {
+    if (
+      !confirm(
+        `⚠️ 정말로 "${productName}" 상품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며, 등록된 모든 색상 옵션도 함께 삭제됩니다.`
+      )
+    )
+      return;
+
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', productId);
+
+      if (error) throw error;
+
+      setDbProducts((prev) => prev.filter((p) => p.id !== productId));
+      setDbVariants((prev) => prev.filter((v) => v.product_id !== productId));
+      alert('상품이 성공적으로 삭제되었습니다.');
+    } catch (err: any) {
+      alert(`상품 삭제 중 오류: ${err.message}`);
+    }
+  };
+
+  // Variant visibility toggle
+  const handleToggleVariantVisibility = async (variantId: string, currentVisibility: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('product_variants')
+        .update({ is_visible: !currentVisibility })
+        .eq('id', variantId);
+
+      if (error) throw error;
+
+      setDbVariants((prev) =>
+        prev.map((v) => (v.id === variantId ? { ...v, is_visible: !currentVisibility } : v))
+      );
+    } catch (err: any) {
+      alert(`옵션 노출 상태 변경 중 오류: ${err.message}`);
+    }
+  };
+
+  // Variant deletion
+  const handleDeleteVariant = async (variantId: string, colorName: string) => {
+    if (!confirm(`⚠️ 정말로 "${colorName}" 옵션을 삭제하시겠습니까?`)) return;
+
+    try {
+      const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
+
+      if (error) throw error;
+
+      setDbVariants((prev) => prev.filter((v) => v.id !== variantId));
+      alert('옵션이 삭제되었습니다.');
+    } catch (err: any) {
+      alert(`옵션 삭제 중 오류: ${err.message}`);
+    }
+  };
+
+  // Helper functions for inline inputs
+  const getInlineInput = (productId: number): InlineVariantInput => {
+    return inlineVariantInputs[productId] || { colorName: '', imageUrl: '', isUploading: false, progress: '' };
+  };
+
+  const updateInlineInput = (productId: number, fields: Partial<InlineVariantInput>) => {
+    setInlineVariantInputs((prev) => ({
+      ...prev,
+      [productId]: {
+        ...getInlineInput(productId),
+        ...fields,
+      },
+    }));
+  };
+
+  // Inline Image Upload
+  const handleInlineVariantImageChange = async (productId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    updateInlineInput(productId, { isUploading: true, progress: '업로드 중...' });
+
+    try {
+      const customName = `prod_${productId}_option_inline_${Date.now()}`;
+      const url = await uploadToImgBB(file, customName);
+      updateInlineInput(productId, { imageUrl: url, isUploading: false, progress: '' });
+    } catch (err: any) {
+      alert(`이미지 업로드 중 오류: ${err.message || err}`);
+      updateInlineInput(productId, { isUploading: false, progress: '' });
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // Add Inline Variant
+  const handleAddInlineVariant = async (productId: number) => {
+    const input = getInlineInput(productId);
+    if (!input.colorName.trim()) return alert('색상명을 입력해주세요.');
+    if (!input.imageUrl) return alert('이미지를 업로드해주세요.');
+
+    const nextOptId = `${productId}-opt-${Date.now()}`;
+
+    try {
+      const { data, error } = await supabase
+        .from('product_variants')
+        .insert({
+          id: nextOptId,
+          product_id: productId,
+          color_name: input.colorName.trim(),
+          image: input.imageUrl,
+          is_visible: true,
+        })
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setDbVariants((prev) => [...prev, data[0] as VariantFromDb]);
+        updateInlineInput(productId, { colorName: '', imageUrl: '', isUploading: false, progress: '' });
+        alert('🎨 새 색상 옵션이 추가되었습니다.');
+      }
+    } catch (err: any) {
+      alert(`옵션 추가 중 오류: ${err.message}`);
+    }
+  };
+
+  // Password Authentication handler
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      // 1. 서버사이드 RPC 함수로 비밀번호 검증 (admin_auth 테이블 직접 조회 차단됨)
+      const { data: isValid, error: rpcError } = await supabase
+        .rpc('verify_admin_password', { input_password: password });
+
+      if (rpcError) throw rpcError;
+
+      if (!isValid) {
+        setAuthError('❌ 비밀번호가 올바르지 않습니다.');
+        return;
+      }
+
+      // 2. 일치하면 .env에 있는 계정 정보로 Supabase Auth 로그인 수행
+      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+      const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+
+      if (adminEmail && adminPassword) {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: adminEmail,
+          password: adminPassword,
+        });
+
+        if (authError) {
+          console.error('Supabase Auth Error:', authError);
+          setAuthError(`❌ 로그인 인증 실패: ${authError.message}`);
+          return;
+        }
+      }
+
+      // 3. 로그인 성공 시 세션 저장 및 인증 완료 처리
+      setCookie('admin_auth', 'true', 7);
+      setIsAuthenticated(true);
+      setAuthError('');
+    } catch (err: any) {
+      console.error('Auth handler error:', err);
+      setAuthError(`❌ 인증 처리 중 오류 발생: ${err.message || JSON.stringify(err)}`);
+    }
+  };
+
+  // Helper function to upload image to ImgBB with custom filename
+  const uploadToImgBB = async (file: File, customName: string): Promise<string> => {
+    const apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+    if (!apiKey) {
+      throw new Error('ImgBB API Key가 설정되지 않았습니다. .env 파일을 확인해주세요.');
+    }
+    const formData = new FormData();
+    const fileExtension = file.name.split('.').pop() || 'jpg';
+    // Re-create file object with custom filename
+    const renamedFile = new File([file], `${customName}.${fileExtension}`, { type: file.type });
+    formData.append('image', renamedFile);
+    formData.append('name', customName);
+
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`이미지 업로드 실패: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      return result.data.url;
+    } else {
+      throw new Error(result.error?.message || '이미지 업로드 실패');
+    }
+  };
+
+  // Handle Main Images File Selection
+  const handleMainImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsMainUploading(true);
+    const uploadedUrls: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      setMainUploadProgress(`업로드 중... (${i + 1}/${files.length})`);
+      try {
+        // Construct custom name: prod_{id}_main_{paddedIndex} (e.g. prod_14022_main_001)
+        const idx = mainImageUrls.length + uploadedUrls.length + 1;
+        const paddedIdx = String(idx).padStart(3, '0');
+        const customName = `prod_${productId}_main_${paddedIdx}`;
+
+        const url = await uploadToImgBB(files[i], customName);
+        uploadedUrls.push(url);
+      } catch (err: any) {
+        alert(`${files[i].name} 업로드 중 오류: ${err.message || err}`);
+      }
+    }
+
+    setMainImageUrls((prev) => [...prev, ...uploadedUrls]);
+    setIsMainUploading(false);
+    setMainUploadProgress('');
+    e.target.value = ''; // Reset input file target
+  };
+
+  // Remove uploaded main image url
+  const handleRemoveMainImage = (indexToRemove: number) => {
+    setMainImageUrls((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Handle Variant Images File Selection (Upload multiple at once)
+  const handleVariantImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsVarUploading(true);
+    const newVariants: VariantInput[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      setVarUploadProgress(`업로드 중... (${i + 1}/${files.length})`);
+      try {
+        // Construct custom name: prod_{id}_option_{paddedIndex} (e.g. prod_14022_option_001)
+        const nextIdx = variants.length + newVariants.length + 1;
+        const paddedIdx = String(nextIdx).padStart(3, '0');
+        const customName = `prod_${productId}_option_${paddedIdx}`;
+
+        const url = await uploadToImgBB(files[i], customName);
+        newVariants.push({
+          colorName: `옵션 ${paddedIdx}`,
+          imageUrl: url,
+          isUploading: false
+        });
+      } catch (err: any) {
+        alert(`${files[i].name} 업로드 중 오류: ${err.message || err}`);
+      }
+    }
+
+    setVariants((prev) => [...prev, ...newVariants]);
+    setIsVarUploading(false);
+    setVarUploadProgress('');
+    e.target.value = ''; // Reset file input target
+  };
+
+  // Remove variant row
+  const handleRemoveVariantRow = (indexToRemove: number) => {
+    setVariants((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Update variant field
+  const handleUpdateVariant = (index: number, fields: Partial<VariantInput>) => {
+    setVariants((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, ...fields } : item))
+    );
+  };
+
+  // Form Submit Handler (Supabase Registration)
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!name.trim()) return alert('상품명을 입력해주세요.');
+    if (!price || isNaN(Number(price))) return alert('올바른 가격을 입력해주세요.');
+    if (mainImageUrls.length === 0) return alert('대표 이미지를 최소 1개 이상 업로드해주세요.');
+    if (variants.length === 0) return alert('색상 옵션 이미지를 최소 1개 이상 일괄 업로드해 등록해주세요.');
+
+    // Validate Variants
+    for (let i = 0; i < variants.length; i++) {
+      if (!variants[i].colorName.trim()) {
+        return alert(`${i + 1}번째 옵션의 색상명을 입력해주세요.`);
+      }
+      if (!variants[i].imageUrl) {
+        return alert(`"${variants[i].colorName}" 옵션의 이미지가 누락되었습니다.`);
+      }
+    }
+
+    setIsSubmitting(true);
+    const finalCategory = category === '직접입력' ? customCategory.trim() : category;
+
+    try {
+      // 1. Insert into products table using the custom 5-digit productId
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .insert({
+          id: productId,
+          name: name.trim(),
+          price: Number(price),
+          description: description.trim(),
+          category: finalCategory,
+          main_images: mainImageUrls,
+          is_visible: true,
+        })
+        .select();
+
+      if (productError) {
+        throw productError;
+      }
+
+      if (!productData || productData.length === 0) {
+        throw new Error('상품 데이터가 저장되었으나 반환되지 않았습니다.');
+      }
+
+      const newProductId = productData[0].id;
+
+      // 2. Prepare and Insert product variants
+      const variantsToInsert = variants.map((v, idx) => ({
+        id: `${newProductId}-opt${idx + 1}`,
+        product_id: newProductId,
+        color_name: v.colorName.trim(),
+        image: v.imageUrl,
+        is_visible: true,
+      }));
+
+      const { error: variantsError } = await supabase
+        .from('product_variants')
+        .insert(variantsToInsert);
+
+      if (variantsError) {
+        // Cleanup product if variants insertion fails
+        await supabase.from('products').delete().eq('id', newProductId);
+        throw variantsError;
+      }
+
+      alert('🎉 성공적으로 상품이 등록되었습니다!');
+
+      // Reset Form State
+      setName('');
+      setPrice('');
+      setCategory('스카프');
+      setCustomCategory('');
+      setDescription('');
+      setMainImageUrls([]);
+      setVariants([]);
+      // Generate a new 5-digit random Product ID for next item
+      setProductId(Math.floor(10000 + Math.random() * 90000));
+
+    } catch (err: any) {
+      console.error(err);
+      if (err.message && err.message.includes('schema cache')) {
+        alert(
+          `❌ Supabase 테이블 설정 오류!\n\nDB에 'products' 테이블이 생성되지 않았습니다.\n프로젝트 루트에 있는 'schema.sql' 파일의 내용을 복사하여 Supabase SQL Editor에서 실행해주세요.`
+        );
+      } else {
+        alert(`상품 등록 중 오류 발생: ${err.message || JSON.stringify(err)}`);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  if (isVerifyingSession) {
+    return (
+      <div className="loading-container" style={{ padding: '80px', textAlign: 'center' }}>
+        <div className="spinner" style={{ margin: '0 auto 16px auto', width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ fontWeight: '700' }}>인증 세션을 확인하고 있습니다...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="admin-auth-container">
+        <div className="auth-card glassmorphism">
+          <div className="auth-logo">MINDLE</div>
+          <h2>관리자 화면 접속</h2>
+          <p className="auth-subtitle">민들레 관리자 로그인</p>
+          <form onSubmit={handleAuthSubmit} className="auth-form">
+            <div className="form-group">
+              <label htmlFor="admin-password">비밀번호 입력</label>
+              <input
+                type="password"
+                id="admin-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="비밀번호를 입력하세요"
+                autoFocus
+                required
+              />
+            </div>
+            {authError && <p className="auth-error-msg">{authError}</p>}
+            <button type="submit" className="auth-submit-btn">
+              접속하기
+            </button>
+          </form>
+          <div className="auth-footer-link">
+            <Link to="/">← 메인 화면으로 돌아가기</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER ADMIN DASHBOARD SCREEN
+  return (
+    <div className="admin-dashboard-container">
+      {/* Separated Exit Button Bar */}
+      <div className="admin-top-bar">
+        <Link to="/admin/orders" className="exit-admin-btn-separated">
+          📋 주문 목록 관리 보기 →
+        </Link>
+      </div>
+
+      {/* Admin Header */}
+      <header className="admin-header glassmorphism">
+        <div className="admin-header-left">
+          <span className="admin-title-badge">ADMIN</span>
+          <h1>민들레 관리자</h1>
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <nav className="admin-tabs">
+        <button
+          className={`tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
+          onClick={() => setActiveTab('manage')}
+        >
+          📂 상품 관리
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'register' ? 'active' : ''}`}
+          onClick={() => setActiveTab('register')}
+        >
+          📦 상품 등록
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
+          onClick={() => setActiveTab('customers')}
+        >
+          🤝 거래처 관리 (준비 중)
+        </button>
+      </nav>
+
+      {/* Tab Contents */}
+      <main className="admin-main-content">
+        {activeTab === 'manage' ? (
+          <div className="product-manage-container">
+            {isLoadingDb ? (
+              <div className="loading-container" style={{ padding: '40px', textAlign: 'center' }}>
+                <div className="spinner" style={{ margin: '0 auto 16px auto', width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <p>상품 목록을 불러오는 중입니다...</p>
+              </div>
+            ) : dbProducts.length === 0 ? (
+              <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>등록된 상품이 없습니다.</p>
+                <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>[신규 상품 등록] 탭에서 첫 상품을 추가해보세요!</p>
+              </div>
+            ) : (
+              <div className="manage-products-grid">
+                {dbProducts.map((product) => {
+                  const productVariants = dbVariants.filter(v => v.product_id === product.id);
+                  const inlineInput = getInlineInput(product.id);
+
+                  return (
+                    <div key={product.id} className="manage-product-card glassmorphism">
+                      <div className="manage-product-header">
+                        <div className="manage-product-info">
+                          <span className="manage-product-category">{product.category}</span>
+                          <span className="manage-product-id">ID: {product.id}</span>
+                          <h3 className="manage-product-title">{product.name}</h3>
+                          <p className="manage-product-price">{Number(product.price).toLocaleString()}원</p>
+                        </div>
+                        <div className="manage-product-thumbnail-wrapper">
+                          <img
+                            src={product.main_images[0] || 'https://via.placeholder.com/150'}
+                            alt={product.name}
+                            className="manage-product-thumbnail"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="manage-product-controls">
+                        {/* 상품 노출 제어 토글 */}
+                        <div className="visibility-toggle-group">
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={product.is_visible}
+                              onChange={() => handleToggleProductVisibility(product.id, product.is_visible)}
+                            />
+                            <span className="toggle-slider"></span>
+                          </label>
+                          <span className={`visibility-label ${product.is_visible ? 'visible' : 'hidden'}`}>
+                            {product.is_visible ? '🟢 쇼핑몰 노출 중' : '🔴 노출 중단됨'}
+                          </span>
+                        </div>
+
+                        {/* 상품 삭제 */}
+                        <button
+                          className="delete-product-action-btn"
+                          onClick={() => handleDeleteProduct(product.id, product.name)}
+                        >
+                          🗑️ 상품 삭제
+                        </button>
+                      </div>
+
+                      {/* 색상 옵션 관리 영역 */}
+                      <div className="manage-variants-section">
+                        <h4>🎨 색상 옵션 관리 ({productVariants.length})</h4>
+
+                        {productVariants.length === 0 ? (
+                          <p className="no-variants-text">등록된 색상 옵션이 없습니다.</p>
+                        ) : (
+                          <div className="manage-variants-list">
+                            {productVariants.map((variant) => (
+                              <div key={variant.id} className="manage-variant-row">
+                                <img src={variant.image} alt={variant.color_name} className="manage-variant-thumb" />
+                                <span className="manage-variant-name">{variant.color_name}</span>
+
+                                <div className="manage-variant-row-controls">
+                                  {/* 색상 노출 토글 */}
+                                  <button
+                                    className={`variant-visibility-btn ${variant.is_visible ? 'visible' : 'hidden'}`}
+                                    onClick={() => handleToggleVariantVisibility(variant.id, variant.is_visible)}
+                                    title={variant.is_visible ? '노출 중 (클릭 시 중단)' : '노출 중단됨 (클릭 시 노출)'}
+                                  >
+                                    {variant.is_visible ? '👁️ 노출' : '🙈 숨김'}
+                                  </button>
+                                  {/* 색상 삭제 */}
+                                  <button
+                                    className="variant-delete-btn"
+                                    onClick={() => handleDeleteVariant(variant.id, variant.color_name)}
+                                    title="옵션 삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 신규 색상 옵션 추가 (인라인 폼) */}
+                        <div className="inline-add-variant-box">
+                          <h5>➕ 새 색상 추가</h5>
+                          <div className="inline-variant-form-row">
+                            <div className="inline-file-input-wrapper">
+                              <input
+                                type="file"
+                                id={`inline-file-input-${product.id}`}
+                                accept="image/*"
+                                onChange={(e) => handleInlineVariantImageChange(product.id, e)}
+                                disabled={inlineInput.isUploading}
+                                style={{ display: 'none' }}
+                              />
+                              <label
+                                htmlFor={`inline-file-input-${product.id}`}
+                                className="inline-file-label"
+                              >
+                                {inlineInput.isUploading ? (
+                                  <span className="spinner-small" style={{ display: 'block', width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+                                ) : inlineInput.imageUrl ? (
+                                  <img src={inlineInput.imageUrl} alt="preview" className="inline-upload-preview" />
+                                ) : (
+                                  '사진'
+                                )}
+                              </label>
+                            </div>
+
+                            <input
+                              type="text"
+                              value={inlineInput.colorName}
+                              onChange={(e) => updateInlineInput(product.id, { colorName: e.target.value })}
+                              placeholder="색상명 입력"
+                              className="inline-variant-name-input"
+                            />
+
+                            <button
+                              type="button"
+                              className="inline-variant-add-submit-btn"
+                              onClick={() => handleAddInlineVariant(product.id)}
+                              disabled={inlineInput.isUploading || !inlineInput.imageUrl || !inlineInput.colorName.trim()}
+                            >
+                              추가
+                            </button>
+                          </div>
+                          {inlineInput.isUploading && <p className="inline-upload-progress-text">{inlineInput.progress}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'customers' ? (
+          <div className="customers-placeholder-card glassmorphism">
+            <div className="placeholder-icon">🤝</div>
+            <h2>거래처 관리 서비스 개발 대기 중</h2>
+            <p>이 탭은 추후 거래처의 정보를 열람, 수정, 주문 현황 확인 등의 관리 기능을 배치하기 위한 영역입니다.</p>
+            <p className="hint-text">현재는 상품 등록 기능이 핵심 사양으로 활성화되어 있습니다.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleProductSubmit} className="product-register-form">
+            <div className="form-sections-grid">
+
+              {/* 왼쪽 섹션: 기본 정보 */}
+              <div className="form-card basic-info-card glassmorphism">
+                <h3>📋 상품 기본 정보</h3>
+
+                <div className="form-group-row">
+                  <div className="form-group">
+                    <label>상품명 *</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="예) 플라워 프릴 보닛"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>도매 가격 (원) *</label>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="예) 18000"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group-row">
+                  <div className="form-group">
+                    <label>카테고리 *</label>
+                    <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                      <option value="스카프">스카프</option>
+                      <option value="두건">두건</option>
+                      <option value="모자">모자</option>
+                      <option value="잡화">잡화</option>
+                      <option value="직접입력">직접 입력...</option>
+                    </select>
+                  </div>
+
+                  {category === '직접입력' && (
+                    <div className="form-group">
+                      <label>직접 입력 카테고리 *</label>
+                      <input
+                        type="text"
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        placeholder="예) 신발"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label>상품 설명</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="소재, 특징, 권장 연령 등 거래처 사장님들께 노출될 정보를 작성해주세요."
+                    rows={4}
+                  />
+                </div>
+              </div>
+
+              {/* 오른쪽 섹션: 이미지 일괄 업로드 */}
+              <div className="form-card images-upload-card glassmorphism">
+                <h3>🖼️ 대표 이미지 등록 *</h3>
+                <p className="card-subtitle">
+                  상품 상세 정보 상단 슬라이드쇼에 노출되는 대표 이미지들입니다. (여러 장 선택 가능)
+                </p>
+
+                <div className="file-uploader-box">
+                  <input
+                    type="file"
+                    id="main-images-input"
+                    multiple
+                    accept="image/*"
+                    onChange={handleMainImagesChange}
+                    disabled={isMainUploading}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="main-images-input" className="file-uploader-label">
+                    {isMainUploading ? (
+                      <div className="upload-loader">
+                        <span className="spinner"></span>
+                        <p>{mainUploadProgress}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="upload-icon">📤</span>
+                        <p>사진 파일 선택 (여러 개 선택 가능)</p>
+                        <span className="upload-btn-styled">파일 찾기</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                {/* Uploaded Main Images list */}
+                {mainImageUrls.length > 0 && (
+                  <div className="uploaded-previews-grid">
+                    {mainImageUrls.map((url, idx) => (
+                      <div key={idx} className="preview-thumbnail-container">
+                        <span className="img-idx-badge">{idx + 1}</span>
+                        <img src={url} alt={`대표 이미지 ${idx + 1}`} className="preview-img-square" />
+                        <button
+                          type="button"
+                          className="delete-preview-btn"
+                          onClick={() => handleRemoveMainImage(idx)}
+                          title="삭제"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* 하단 섹션: 색상 옵션(Variants) */}
+            <div className="form-card variants-card glassmorphism">
+              <div className="variants-card-header">
+                <div>
+                  <h3>🎨 색상별 옵션 등록 *</h3>
+                  <p className="card-subtitle">먼저 옵션 이미지들을 한 번에 선택하여 업로드하면, 아래에 옵션명 입력란이 생성됩니다.</p>
+                </div>
+                <div className="variants-uploader-wrapper">
+                  <input
+                    type="file"
+                    id="variant-images-input"
+                    multiple
+                    accept="image/*"
+                    onChange={handleVariantImagesChange}
+                    disabled={isVarUploading}
+                    style={{ display: 'none' }}
+                  />
+                  <label
+                    htmlFor="variant-images-input"
+                    className="add-variant-row-btn"
+                    style={{ cursor: isVarUploading ? 'not-allowed' : 'pointer', display: 'inline-block' }}
+                  >
+                    {isVarUploading ? (
+                      <span className="row-uploading-loader" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="spinner-small"></span>
+                        {varUploadProgress}
+                      </span>
+                    ) : (
+                      '📤 색상 사진 등록 (여러 개 선택)'
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {variants.length === 0 ? (
+                <div className="empty-variants-msg" style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: 'var(--code-bg)', borderRadius: '12px', border: '1.5px dashed var(--border)' }}>
+                  <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: 'var(--text)' }}>등록된 옵션이 없습니다.</p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '0.95rem', color: 'var(--text)' }}>위의 [옵션 이미지 일괄 업로드] 버튼을 눌러 사진을 등록해 주세요.</p>
+                </div>
+              ) : (
+                <div className="variants-input-list">
+                  {variants.map((v, idx) => (
+                    <div key={idx} className="variant-form-row" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <div className="variant-row-num">{idx + 1}</div>
+
+                      {/* 이미지 미리보기 */}
+                      <div className="variant-preview-box" style={{ flexShrink: 0 }}>
+                        <img
+                          src={v.imageUrl}
+                          alt={`옵션 ${idx + 1}`}
+                          className="variant-row-thumb-large"
+                          style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '1.5px solid var(--border)' }}
+                        />
+                      </div>
+
+                      {/* 옵션명 */}
+                      <div className="form-group flex-1" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.95rem', marginBottom: '6px' }}>색상/옵션명</label>
+                        <input
+                          type="text"
+                          value={v.colorName}
+                          onChange={(e) => handleUpdateVariant(idx, { colorName: e.target.value })}
+                          placeholder="예) 옵션 01 또는 검정"
+                          required
+                          style={{ padding: '12px' }}
+                        />
+                      </div>
+
+                      {/* 삭제 단추 */}
+                      <button
+                        type="button"
+                        className="remove-row-btn"
+                        onClick={() => handleRemoveVariantRow(idx)}
+                        title="이 옵션 행 삭제"
+                        style={{ marginBottom: 0, padding: '12px 16px' }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 최종 제출 */}
+            <div className="form-actions-bar">
+              <button
+                type="submit"
+                className="submit-product-btn"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? '상품 데이터를 저장 중...' : '상품 등록 완료'}
+              </button>
+            </div>
+
+          </form>
+        )}
+      </main>
+    </div>
+  );
+}

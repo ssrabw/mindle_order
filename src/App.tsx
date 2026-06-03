@@ -1,8 +1,13 @@
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import ProductList from './components/ProductList';
 import ProductDetail from './components/ProductDetail';
 import OrderPage from './components/OrderPage';
+import AdminPage from './components/AdminPage';
+import AdminOrdersPage from './components/AdminOrdersPage';
+import MyOrdersPage from './components/MyOrdersPage';
 import { useCartStore } from './store/useCartStore';
+import { supabase } from './api/supabase';
 import './App.css';
 
 interface NavigationHeaderProps {
@@ -12,6 +17,8 @@ interface NavigationHeaderProps {
 function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
   const cart = useCartStore((state) => state.cart);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
 
   return (
     <header className="main-header">
@@ -20,14 +27,22 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
           <span className="logo-gradient">민들레</span>
         </Link>
         <nav className="nav-menu">
-          <Link to="/" className="nav-link">전체 상품</Link>
-          <span className="nav-link disabled">도매 이용안내</span>
+          {!isAdmin && (
+            <>
+              <Link to="/" className="nav-link">전체 상품</Link>
+              <Link to="/my-orders" className="nav-link">🔍 주문 조회</Link>
+              <span className="nav-link disabled">도매 이용안내</span>
+            </>
+          )}
         </nav>
-        <div className="header-actions">
-          <button className="cart-text-btn" onClick={onCartClick} aria-label="담아둔 상품 주문하기">
-            📦 담아둔 상품 주문하기 ({totalItems}개)
-          </button>
-        </div>
+        {!isAdmin && (
+          <div className="header-actions">
+            <button className="cart-text-btn" onClick={onCartClick} aria-label="담아둔 상품 주문하기">
+              <span className="cart-btn-desktop">📦 담아둔 상품 주문하기 ({totalItems}개)</span>
+              <span className="cart-btn-mobile">📦 장바구니 ({totalItems}개)</span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
@@ -159,6 +174,84 @@ function MainLayout() {
   const isCartOpen = useCartStore((state) => state.isCartOpen);
   const setIsCartOpen = useCartStore((state) => state.setIsCartOpen);
 
+  // 실시간 주문 상태 포장 완료 알림 리스너
+  useEffect(() => {
+    let activeChannel: any = null;
+    let currentSubscribedId: string | null = null;
+
+    const checkAndSubscribe = () => {
+      const lastOrderId = localStorage.getItem('last_order_id');
+      const notificationAgreed = localStorage.getItem('notification_agreed') === 'true';
+
+      // 동의하지 않았거나 마지막 주문 ID가 없으면 리턴
+      if (!lastOrderId || !notificationAgreed) {
+        if (activeChannel) {
+          supabase.removeChannel(activeChannel);
+          activeChannel = null;
+          currentSubscribedId = null;
+        }
+        return;
+      }
+
+      // 이미 동일한 주문을 구독 중이라면 중복 연결 방지
+      if (currentSubscribedId === lastOrderId) return;
+
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+      }
+
+      currentSubscribedId = lastOrderId;
+      activeChannel = supabase
+        .channel(`order-status-${lastOrderId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `id=eq.${lastOrderId}`,
+          },
+          (payload) => {
+            const newStatus = payload.new.status;
+            if (newStatus === '포장 완료') {
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('민들레 도매', {
+                  body: '주문하신 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.'
+                });
+              }
+              // 중복 알림 방지를 위해 구독 정보 정리
+              localStorage.removeItem('last_order_id');
+              localStorage.removeItem('notification_agreed');
+              
+              if (activeChannel) {
+                supabase.removeChannel(activeChannel);
+                activeChannel = null;
+                currentSubscribedId = null;
+              }
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    // 마운트 시 실행
+    checkAndSubscribe();
+
+    // 2초 간격으로 스토리지 감지 (동일 탭에서 주문 완료 시 대응)
+    const interval = setInterval(checkAndSubscribe, 2000);
+
+    // 다른 탭에서 변경된 경우 감지
+    window.addEventListener('storage', checkAndSubscribe);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', checkAndSubscribe);
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+      }
+    };
+  }, []);
+
   return (
     <div className="app-layout">
       <NavigationHeader onCartClick={() => setIsCartOpen(true)} />
@@ -169,6 +262,9 @@ function MainLayout() {
           <Route path="/" element={<ProductList />} />
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/order" element={<OrderPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/my-orders" element={<MyOrdersPage />} />
         </Routes>
       </main>
 

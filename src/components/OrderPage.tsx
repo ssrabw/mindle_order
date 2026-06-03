@@ -1,34 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCartStore } from '../store/useCartStore';
+import { supabase } from '../api/supabase';
 
 declare global {
   interface Window {
     daum: any;
   }
 }
-
-const MOCK_CUSTOMER_DB: {
-  [key: string]: {
-    shopName: string;
-    postcode: string;
-    address: string;
-    detailAddress: string;
-  };
-} = {
-  '01093863222': {
-    shopName: '서울 민들레',
-    postcode: '06164',
-    address: '서울 강남구 테헤란로 521 (삼성동, 파르나스타워)',
-    detailAddress: '15층',
-  },
-  '01012345678': {
-    shopName: '부산 상사',
-    postcode: '48058',
-    address: '부산 해운대구 우동 1475 (우동, 현대아파트)',
-    detailAddress: '101동 1004호',
-  },
-};
 
 const OrderPage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +32,7 @@ const OrderPage: React.FC = () => {
   // Phone Lookup State
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'member' | 'new'>('idle');
 
-  const handlePhoneLookup = () => {
+  const handlePhoneLookup = async () => {
     const cleaned = phone.replace(/\D/g, '');
     if (!cleaned) {
       alert('전화번호를 먼저 입력해 주세요.');
@@ -61,26 +40,40 @@ const OrderPage: React.FC = () => {
     }
     setLookupStatus('searching');
 
-    setTimeout(() => {
-      const match = MOCK_CUSTOMER_DB[cleaned];
-      if (match) {
-        setShopName(match.shopName);
-        setPostcode(match.postcode);
-        setAddress(match.address);
-        setDetailAddress(match.detailAddress);
+    try {
+      // 1. Supabase customers 테이블에서 phone 컬럼으로 검색
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', cleaned)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setShopName(data.shop_name);
+        setPostcode(data.postcode);
+        setAddress(data.address);
+        setDetailAddress(data.detail_address);
         setLookupStatus('member');
-        alert(`기존 회원 정보를 불러왔습니다: ${match.shopName}`);
+        alert(`기존 회원 정보를 불러왔습니다: ${data.shop_name}`);
       } else {
         setLookupStatus('new');
         alert('조회 결과 일치하는 회원 정보가 없습니다. 신규 정보로 작성해 주세요.');
       }
-    }, 500);
+    } catch (err: any) {
+      console.error('고객 조회 오류:', err);
+      alert(`고객 정보 조회 중 오류가 발생했습니다: ${err.message}`);
+      setLookupStatus('idle');
+    }
   };
 
-  // Scroll to top on mount
+  // Scroll to top on mount or when order succeeds
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+  }, [isOrdered]);
 
   // Dynamically load Daum Postcode script
   useEffect(() => {
@@ -177,7 +170,7 @@ const OrderPage: React.FC = () => {
     }
   };
 
-  const handleOrderSubmit = (e: React.FormEvent) => {
+  const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!phone.trim()) {
@@ -230,34 +223,101 @@ const OrderPage: React.FC = () => {
       displayDeliveryMethod = `근처 매장에 전달 (${shopDeliveryInfo.trim()})`;
     }
 
-    // Save data for success display
-    const orderDetails = {
-      shopName: shopName.trim(),
-      phoneOriginal: phone.trim(),
-      phoneParsedPK: parsedPhone, // Primary Key for DB
-      postcode: postcode.trim(),
-      address: address.trim(),
-      detailAddress: detailAddress.trim(),
-      deliveryMethod: displayDeliveryMethod,
-      paymentMethod: displayPaymentMethod,
-      notificationStatus: notificationAgreed ? (notificationStatus || '동의함') : '미동의',
-      basePrice,
-      deliveryFee,
-      totalPrice,
-      items: cart.map(item => ({
-        productName: item.product.name,
-        variantName: item.variant.colorName,
+    try {
+      // 1. 거래처(customers) 테이블 등록 또는 갱신
+      const { error: customerError } = await supabase
+        .from('customers')
+        .upsert({
+          phone: parsedPhone,
+          shop_name: shopName.trim(),
+          postcode: postcode.trim(),
+          address: address.trim(),
+          detail_address: detailAddress.trim()
+        });
+
+      if (customerError) throw customerError;
+
+      // 2. orders 테이블에 주문 등록
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_phone: parsedPhone,
+          delivery_method: deliveryMethod,
+          payment_method: paymentMethod,
+          shop_delivery_info: deliveryMethod === 'shop' ? shopDeliveryInfo.trim() : null,
+          notification_agreed: notificationAgreed,
+          delivery_fee: deliveryFee,
+          total_price: totalPrice,
+          status: '주문 완료'
+        })
+        .select();
+
+      if (orderError) throw orderError;
+      if (!orderData || orderData.length === 0) {
+        throw new Error('주문 저장은 완료되었으나 주문 번호를 받지 못했습니다.');
+      }
+
+      const newOrderId = orderData[0].id;
+
+      // 3. order_items 테이블에 상세 상품 목록 등록
+      const orderItemsToInsert = cart.map(item => ({
+        order_id: newOrderId,
+        product_id: item.product.id,
+        product_name: item.product.name,
+        variant_id: item.variant.id,
+        variant_name: item.variant.colorName,
+        image: item.variant.image,
         quantity: item.quantity,
         price: item.product.price
-      }))
-    };
+      }));
 
-    setSubmittedData(orderDetails);
-    setIsOrdered(true);
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsToInsert);
 
-    // Clear global store cart items
-    clearCart();
-    setIsCartOpen(false);
+      if (itemsError) {
+        // order_items 입력 실패 시 master order 롤백
+        await supabase.from('orders').delete().eq('id', newOrderId);
+        throw itemsError;
+      }
+
+      // 4. 로컬 스토리지에 마지막 주문 정보 저장 (실시간 알림 감지용)
+      localStorage.setItem('last_order_id', String(newOrderId));
+      localStorage.setItem('notification_agreed', notificationAgreed ? 'true' : 'false');
+
+      // Save data for success display
+      const orderDetails = {
+        shopName: shopName.trim(),
+        phoneOriginal: phone.trim(),
+        phoneParsedPK: parsedPhone, // Primary Key for DB
+        postcode: postcode.trim(),
+        address: address.trim(),
+        detailAddress: detailAddress.trim(),
+        deliveryMethod: displayDeliveryMethod,
+        paymentMethod: displayPaymentMethod,
+        notificationStatus: notificationAgreed ? (notificationStatus || '동의함') : '미동의',
+        basePrice,
+        deliveryFee,
+        totalPrice,
+        items: cart.map(item => ({
+          productName: item.product.name,
+          variantName: item.variant.colorName,
+          quantity: item.quantity,
+          price: item.product.price
+        }))
+      };
+
+      setSubmittedData(orderDetails);
+      setIsOrdered(true);
+
+      // Clear global store cart items
+      clearCart();
+      setIsCartOpen(false);
+
+    } catch (err: any) {
+      console.error('주문 처리 중 오류:', err);
+      alert(`주문 저장 중 오류가 발생했습니다: ${err.message || JSON.stringify(err)}`);
+    }
   };
 
   // If order complete screen
@@ -270,11 +330,11 @@ const OrderPage: React.FC = () => {
           <p className="success-subtitle">입력하신 주문 정보는 안전하게 DB에 저장되었습니다.</p>
 
           <div className="summary-section">
-            <h3>💾 데이터 전송 요약 (DB 저장 내역)</h3>
+            <h3>💾 주문 내역</h3>
             <table className="db-summary-table">
               <tbody>
                 <tr>
-                  <th>상호명 (지역)</th>
+                  <th>상호</th>
                   <td>{submittedData.shopName}</td>
                 </tr>
                 <tr>

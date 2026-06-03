@@ -1,18 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockProducts } from '../data/mockProducts';
 import { useCartStore } from '../store/useCartStore';
+
+import { supabase } from '../api/supabase';
+import type { Product } from '../types/product';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { cart, addToCart } = useCartStore();
 
-  const product = mockProducts.find((p) => p.id === Number(id));
-
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchProductDetail() {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_variants(*)')
+          .eq('id', Number(id))
+          .eq('is_visible', true)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped: Product = {
+            id: data.id,
+            name: data.name,
+            price: data.price,
+            description: data.description || '',
+            category: data.category || '',
+            mainImages: data.main_images || [],
+            variants: (data.product_variants || [])
+              .filter((v: any) => v.is_visible !== false)
+              .map((v: any) => ({
+                id: v.id,
+                colorName: v.color_name,
+                image: v.image
+              }))
+          };
+          setProduct(mapped);
+        } else {
+          setProduct(null);
+        }
+      } catch (err) {
+        console.error('Supabase 상세 조회 오류:', err);
+        setProduct(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchProductDetail();
+  }, [id]);
 
   useEffect(() => {
     if (!product || !isPlaying) return;
@@ -21,6 +66,14 @@ const ProductDetail: React.FC = () => {
     }, 3000);
     return () => clearInterval(interval);
   }, [isPlaying, product]);
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', fontSize: '1.25rem' }}>
+        상품 상세 정보를 불러오는 중입니다...
+      </div>
+    );
+  }
 
   if (!product) {
     return <div style={{ padding: '20px', textAlign: 'center', fontSize: '1.2rem' }}>상품을 찾을 수 없습니다.</div>;
