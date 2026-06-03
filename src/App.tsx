@@ -25,9 +25,9 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
   return (
     <header className="main-header">
       <div className="header-container">
-        <Link to="/" className="logo-link">
+        {/* <Link to="/" className="logo-link"> */}
           <span className="logo-gradient">민들레</span>
-        </Link>
+        {/* </Link> */}
         <nav className="nav-menu">
           {!isAdmin && (
             <>
@@ -286,7 +286,7 @@ function MainLayout() {
       <footer className="main-footer">
         <div className="footer-container">
           <p className="footer-brand">민들레 주문 사이트</p>
-          <p className="footer-copy">&copy; 2026 MINDLE. All rights reserved.</p>
+          <p className="footer-copy">&copy; 2008 MINDLE. All rights reserved.</p>
         </div>
       </footer>
     </div>
