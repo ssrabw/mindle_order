@@ -70,10 +70,10 @@ const OrderPage: React.FC = () => {
     }
   };
 
-  // Scroll to top on mount or when order succeeds
+  // Scroll to top on mount
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [isOrdered]);
+  }, []);
 
   // Dynamically load Daum Postcode script
   useEffect(() => {
@@ -463,7 +463,7 @@ const OrderPage: React.FC = () => {
                 <input
                   type="tel"
                   id="phone"
-                  placeholder="예) 010-9386-3222 (숫자만 입력하셔도 됩니다)"
+                  placeholder="예) 010-6374-3229 (숫자만 입력하셔도 됩니다)"
                   value={phone}
                   onChange={(e) => {
                     setPhone(e.target.value);
