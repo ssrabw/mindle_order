@@ -124,7 +124,16 @@ export default function MyOrdersPage() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders((data as any) || []);
+      const fetchedOrders = (data as any) || [];
+      setOrders(fetchedOrders);
+
+      // 조회 성공 시 기기 알림 연동을 위해 로컬스토리지 동기화 및 이벤트 디스패치
+      if (fetchedOrders.length > 0) {
+        const hasAgreed = fetchedOrders.some((o: any) => o.notification_agreed === true);
+        localStorage.setItem('customer_phone', parsedPhone);
+        localStorage.setItem('notification_agreed', hasAgreed ? 'true' : 'false');
+        window.dispatchEvent(new Event('storage'));
+      }
     } catch (err: any) {
       console.error(err);
       alert(`주문서 조회 실패: ${err.message}`);
