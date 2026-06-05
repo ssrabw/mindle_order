@@ -425,7 +425,7 @@ export default function AdminCustomersPage() {
       {/* Transaction History Popup Modal */}
       {isModalOpen && selectedCustomer && (
         <div className="customer-modal-overlay" onClick={closeModal}>
-          <div className="customer-modal-container glassmorphism" onClick={(e) => e.stopPropagation()}>
+          <div className="customer-modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="customer-modal-header">
               <div>
                 <span className="customer-modal-subtitle">TRANSACTIONS</span>
