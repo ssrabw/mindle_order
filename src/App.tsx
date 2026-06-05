@@ -27,9 +27,9 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
   return (
     <header className="main-header">
       <div className="header-container">
-        {/* <Link to="/" className="logo-link"> */}
+        <Link to={isAdmin ? "/admin" : "/"} className="logo-link">
           <span className="logo-gradient">민들레</span>
-        {/* </Link> */}
+        </Link>
         <nav className="nav-menu">
           {!isAdmin && (
             <>
