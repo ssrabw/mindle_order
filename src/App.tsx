@@ -325,7 +325,9 @@ function MainLayout() {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log(`[Realtime] 고객 주문 구독 상태 (${customerPhone}):`, status);
+        });
 
       // 2) 미송(이월) 주문 상태 변경 감지
       activeChannelMisong = supabase
@@ -351,7 +353,9 @@ function MainLayout() {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log(`[Realtime] 고객 미송 구독 상태 (${customerPhone}):`, status);
+        });
     };
 
     checkAndSubscribe();
@@ -421,7 +425,9 @@ function MainLayout() {
             playNotificationSound();
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('[Realtime] 어드민 새 주문 구독 상태:', status);
+        });
     };
 
     checkAdminAndSubscribe();
