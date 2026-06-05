@@ -36,10 +36,12 @@ export default function AdminOrdersPage() {
   const [authError, setAuthError] = useState<string>('');
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
 
-  // Filter State: '3' | '7' | '30' | 'all'
-  const [filterDays, setFilterDays] = useState<string>('3');
+  // Filter State: 'today' | '3' | '30' | 'all'
+  const [filterDays, setFilterDays] = useState<string>('today');
   // Active Tab State: 'order' (일반) | 'misong' (미송)
   const [activeTab, setActiveTab] = useState<'order' | 'misong'>('order');
+  // Status Filter State: 'active' (주문 대기) | 'completed' (포장 완료)
+  const [statusFilter, setStatusFilter] = useState<'active' | 'completed'>('active');
 
   // Collapsible Date Filter Toggle
   const [showDateFilter, setShowDateFilter] = useState<boolean>(false);
@@ -83,11 +85,30 @@ export default function AdminOrdersPage() {
       }
 
       if (filterDays !== 'all') {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - Number(filterDays));
-        // Reset time to start of that day in local time for comprehensive coverage
-        cutoffDate.setHours(0, 0, 0, 0);
-        query = query.gte('created_at', cutoffDate.toISOString());
+        if (filterDays === 'today') {
+          // 오늘 새벽 5시 기준 리셋 필터링
+          const now = new Date();
+          const kstOffset = 9 * 60 * 60 * 1000;
+          const kstTime = new Date(now.getTime() + kstOffset);
+          const yyyy = kstTime.getUTCFullYear();
+          const month = kstTime.getUTCMonth();
+          const date = kstTime.getUTCDate();
+          const hour = kstTime.getUTCHours();
+
+          let cutoffKST: Date;
+          if (hour < 5) {
+            cutoffKST = new Date(Date.UTC(yyyy, month, date - 1, 5, 0, 0));
+          } else {
+            cutoffKST = new Date(Date.UTC(yyyy, month, date, 5, 0, 0));
+          }
+          const cutoffUTC = new Date(cutoffKST.getTime() - kstOffset);
+          query = query.gte('created_at', cutoffUTC.toISOString());
+        } else {
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - Number(filterDays));
+          cutoffDate.setHours(0, 0, 0, 0);
+          query = query.gte('created_at', cutoffDate.toISOString());
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -153,7 +174,14 @@ export default function AdminOrdersPage() {
   // 3. Reset pagination page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterDays, activeTab, searchQuery]);
+  }, [filterDays, activeTab, searchQuery, statusFilter]);
+
+  // 4. Page change scroll-to-top handler
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [currentPage]);
 
   // Auth Handler
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -542,6 +570,30 @@ export default function AdminOrdersPage() {
     const lowerQuery = trimmed.toLowerCase();
 
     return orders.filter(order => {
+      // 1. 상태 필터(statusFilter) 적용
+      if (statusFilter === 'active') {
+        if (activeTab === 'order') {
+          if (order.status !== '주문 미확인' && order.status !== '주문 확인' && order.status !== '주문') {
+            return false;
+          }
+        } else {
+          if (order.status !== '미송') {
+            return false;
+          }
+        }
+      } else if (statusFilter === 'completed') {
+        if (activeTab === 'order') {
+          if (order.status !== '포장 완료') {
+            return false;
+          }
+        } else {
+          if (order.status !== '미송포장완료') {
+            return false;
+          }
+        }
+      }
+
+      // 2. 검색어 필터 적용
       if (!trimmed) return true;
 
       const phoneMatch = cleanedQuery.length > 0 && (
@@ -717,7 +769,56 @@ export default function AdminOrdersPage() {
               transition: 'all 0.2s'
             }}
           >
-            {showDateFilter ? '필터 닫기 ⚙️' : '필터 ⚙️'}
+            {showDateFilter ? '기간 닫기 ⚙️' : '기간 ⚙️'}
+          </button>
+        </div>
+
+        {/* Row 2: 상태 필터 (주문 / 포장 완료) 상시 노출 */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '12px', 
+          width: '100%',
+          maxWidth: '500px',
+          boxSizing: 'border-box',
+          marginTop: '4px'
+        }}>
+          <button
+            onClick={() => setStatusFilter('active')}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '12px',
+              border: '1.5px solid transparent',
+              backgroundColor: statusFilter === 'active' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.03)',
+              borderColor: statusFilter === 'active' ? 'rgba(139, 92, 246, 0.4)' : 'transparent',
+              color: statusFilter === 'active' ? '#8b5cf6' : 'var(--text-muted)',
+              fontWeight: '800',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            📋 {activeTab === 'order' ? '주문' : '미송'}
+          </button>
+          <button
+            onClick={() => setStatusFilter('completed')}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '12px',
+              border: '1.5px solid transparent',
+              backgroundColor: statusFilter === 'completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 0, 0, 0.03)',
+              borderColor: statusFilter === 'completed' ? 'rgba(16, 185, 129, 0.4)' : 'transparent',
+              color: statusFilter === 'completed' ? '#10b981' : 'var(--text-muted)',
+              fontWeight: '800',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            ✅ {activeTab === 'order' ? '포장 완료' : '미송 포장완료'}
           </button>
         </div>
 
@@ -727,16 +828,16 @@ export default function AdminOrdersPage() {
             {/* Row 1: 기간 필터 버튼 그룹 (최근 3일, 최근 7일, 최근 30일 - 가운데 정렬) */}
             <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
               <button
+                className={`filter-tag-btn ${filterDays === 'today' ? 'active' : ''}`}
+                onClick={() => setFilterDays('today')}
+              >
+                오늘
+              </button>
+              <button
                 className={`filter-tag-btn ${filterDays === '3' ? 'active' : ''}`}
                 onClick={() => setFilterDays('3')}
               >
                 최근 3일
-              </button>
-              <button
-                className={`filter-tag-btn ${filterDays === '7' ? 'active' : ''}`}
-                onClick={() => setFilterDays('7')}
-              >
-                최근 7일
               </button>
               <button
                 className={`filter-tag-btn ${filterDays === '30' ? 'active' : ''}`}

@@ -47,14 +47,14 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
             </button>
           </div>
         ) : (
-          <div className="header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <Link to="/admin/products" className={`exit-admin-btn-separated ${isAdminProducts ? 'active' : ''}`} style={{ margin: 0, padding: '6px 12px', fontSize: '0.85rem' }}>
+          <div className="header-actions" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            <Link to="/admin/products" className={`exit-admin-btn-separated ${isAdminProducts ? 'active' : ''}`} style={{ margin: 0, padding: '5px 8px', fontSize: '0.75rem' }}>
               📂 상품 관리
             </Link>
-            <Link to="/admin/orders" className={`exit-admin-btn-separated ${isAdminOrders ? 'active' : ''}`} style={{ margin: 0, padding: '6px 12px', fontSize: '0.85rem' }}>
+            <Link to="/admin/orders" className={`exit-admin-btn-separated ${isAdminOrders ? 'active' : ''}`} style={{ margin: 0, padding: '5px 8px', fontSize: '0.75rem' }}>
               📋 주문 현황
             </Link>
-            <Link to="/admin/customers" className={`exit-admin-btn-separated ${isAdminCustomers ? 'active' : ''}`} style={{ margin: 0, padding: '6px 12px', fontSize: '0.85rem' }}>
+            <Link to="/admin/customers" className={`exit-admin-btn-separated ${isAdminCustomers ? 'active' : ''}`} style={{ margin: 0, padding: '5px 8px', fontSize: '0.75rem' }}>
               🤝 거래처 관리
             </Link>
           </div>

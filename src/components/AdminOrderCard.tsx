@@ -130,6 +130,21 @@ export default function AdminOrderCard({
     }
   };
 
+  const formatOrderTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return isoString;
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+    } catch (e) {
+      return isoString;
+    }
+  };
+
   const handleCheckboxChange = async (itemId: number, isChecked: boolean) => {
     // Optimistically update local parent state
     onCheckItemChange(itemId, isChecked);
@@ -167,7 +182,7 @@ export default function AdminOrderCard({
       {/* Order Header / Client Meta */}
       <div className="order-sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', paddingBottom: '16px', borderBottom: '1.5px solid var(--border)' }}>
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>주문번호 ID: {order.id}</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatOrderTime(order.created_at)}</span>
           <h3 style={{ fontSize: '1.3rem', fontWeight: '800', margin: '4px 0', color: 'var(--text-h)' }}>
             {customer ? customer.shop_name : '알 수 없는 상호'}
           </h3>
@@ -191,7 +206,7 @@ export default function AdminOrderCard({
                 outline: 'none',
                 width:
                   order.status === '미송' ? '74px' :
-                  order.status === '주문' || order.status === '주문 미확인' || order.status === '미송포장완료' ? '138px' : '112px',
+                    order.status === '주문' || order.status === '주문 미확인' || order.status === '미송포장완료' ? '138px' : '112px',
                 border:
                   order.status === '포장 완료' || order.status === '미송포장완료' ? '1.5px solid rgba(16, 185, 129, 0.4)' :
                     order.status === '주문 확인' ? '1.5px solid rgba(234, 179, 8, 0.4)' :
