@@ -9,11 +9,15 @@ interface Fetcher {
 
 export interface Env {
   ASSETS: Fetcher;
-  SUPABASE_URL: string;
+  SUPABASE_URL?: string;
+  VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_PUBLISHABLE_KEY: string;
-  ADMIN_EMAIL: string;
-  ADMIN_PASSWORD: string;
-  IMGBB_API_KEY: string;
+  ADMIN_EMAIL?: string;
+  VITE_ADMIN_EMAIL?: string;
+  ADMIN_PASSWORD?: string;
+  VITE_ADMIN_PASSWORD?: string;
+  IMGBB_API_KEY?: string;
+  VITE_IMGBB_API_KEY?: string;
 }
 
 export default {
@@ -72,10 +76,10 @@ async function handleAdminLogin(request: Request, env: Env): Promise<Response> {
       });
     }
 
-    const supabaseUrl = env.SUPABASE_URL;
+    const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
     const supabaseAnonKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const adminEmail = env.ADMIN_EMAIL;
-    const adminPassword = env.ADMIN_PASSWORD;
+    const adminEmail = env.ADMIN_EMAIL || env.VITE_ADMIN_EMAIL;
+    const adminPassword = env.ADMIN_PASSWORD || env.VITE_ADMIN_PASSWORD;
 
     if (!supabaseUrl || !supabaseAnonKey || !adminEmail || !adminPassword) {
       return new Response(
@@ -149,7 +153,7 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
       });
     }
 
-    const imgbbApiKey = env.IMGBB_API_KEY;
+    const imgbbApiKey = env.IMGBB_API_KEY || env.VITE_IMGBB_API_KEY;
     if (!imgbbApiKey) {
       return new Response(JSON.stringify({ success: false, error: '서버에 IMGBB_API_KEY가 설정되지 않았습니다.' }), {
         status: 500,
