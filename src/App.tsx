@@ -190,7 +190,16 @@ function MainLayout() {
   const isCartOpen = useCartStore((state) => state.isCartOpen);
   const setIsCartOpen = useCartStore((state) => state.setIsCartOpen);
 
-  // --- 알림 유틸리티 및 리스너 ---
+  // --- 알림 및 서비스 워커 유틸리티 ---
+  // 서비스 워커 등록
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => console.log('서비스 워커가 정상적으로 등록되었습니다:', reg.scope))
+        .catch((err) => console.error('서비스 워커 등록 실패:', err));
+    }
+  }, []);
+
   // 쿠키 획득 유틸
   const getCookie = (name: string): string | null => {
     const nameEQ = name + "=";
@@ -225,6 +234,38 @@ function MainLayout() {
       playChime(now + 0.12, 659.25);
     } catch (err) {
       console.error('실시간 알림 사운드 재생 오류:', err);
+    }
+  };
+
+  // 서비스 워커를 지원하는 환경(모바일 크롬 등)에서 알림을 지원하기 위한 공용 래퍼 함수
+  const showWebNotification = async (title: string, options: NotificationOptions = {}) => {
+    const defaultOptions = {
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      ...options
+    };
+
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    // 1단계: 활성화된 서비스 워커가 있는 경우 서비스 워커 알림으로 실행 (모바일 안드로이드 크롬 필수)
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && 'showNotification' in reg) {
+          await reg.showNotification(title, defaultOptions);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('서비스 워커를 통한 알림 발송 실패, 일반 알림으로 전환:', err);
+    }
+
+    // 2단계: 데스크톱/일반 환경용 standard Notification 생성자로 폴백
+    try {
+      new Notification(title, defaultOptions);
+    } catch (err) {
+      console.error('표준 Notification 생성 실패:', err);
     }
   };
 
@@ -276,11 +317,9 @@ function MainLayout() {
             const oldStatus = payload.old.status;
 
             if (newStatus !== oldStatus && newStatus === '포장 완료') {
-              if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('민들레 도매', {
-                  body: `주문하신 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
-                });
-              }
+              showWebNotification('민들레 도매', {
+                body: `주문하신 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
+              });
               // 알림 사운드 재생
               playNotificationSound();
             }
@@ -304,11 +343,9 @@ function MainLayout() {
             const oldStatus = payload.old.status;
 
             if (newStatus !== oldStatus && newStatus === '미송포장완료') {
-              if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('민들레 도매 (미송 완료)', {
-                  body: `미송 주문 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
-                });
-              }
+              showWebNotification('민들레 도매 (미송 완료)', {
+                body: `미송 주문 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
+              });
               // 알림 사운드 재생
               playNotificationSound();
             }
@@ -376,11 +413,9 @@ function MainLayout() {
 
             const shopName = data ? data.shop_name : phone;
 
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('새 주문 접수 🔔', {
-                body: `${shopName}님의 새 도매 주문이 접수되었습니다!\n금액: ${price.toLocaleString()}원`,
-              });
-            }
+            showWebNotification('새 주문 접수 🔔', {
+              body: `${shopName}님의 새 도매 주문이 접수되었습니다!\n금액: ${price.toLocaleString()}원`,
+            });
 
             // 웹 오디오 알림 사운드 실행
             playNotificationSound();
