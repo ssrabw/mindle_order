@@ -99,6 +99,7 @@ export default function AdminPage() {
   const [editingCategoryProductId, setEditingCategoryProductId] = useState<number | null>(null);
   const [newCategoryValue, setNewCategoryValue] = useState<string>('');
   const [newCustomCategoryValue, setNewCustomCategoryValue] = useState<string>('');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
 
   // Product ID (Generated on load/reset as a 5-digit number)
   const [productId, setProductId] = useState<number>(() => Math.floor(10000 + Math.random() * 90000));
@@ -1017,19 +1018,33 @@ export default function AdminPage() {
                           }}
                         >
                           <span>{cat}</span>
-                          {cat !== '전체' && (
-                            <span
-                              className="delete-category-icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteCategory(cat);
-                              }}
-                            >
-                              &times;
-                            </span>
-                          )}
                         </button>
                       ))}
+                    </div>
+
+                    {/* 카테고리 편집 버튼 (오른쪽 하단 / 검색창 위) */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', marginTop: '2px', marginBottom: '2px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryModalOpen(true)}
+                        className="admin-action-btn"
+                        style={{
+                          padding: '6px 14px',
+                          fontSize: '0.8rem',
+                          borderRadius: '8px',
+                          border: '1.5px solid var(--border)',
+                          backgroundColor: 'var(--bg)',
+                          color: 'var(--text-h)',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s',
+                          fontWeight: '700'
+                        }}
+                      >
+                        카테고리 편집
+                      </button>
                     </div>
 
                   {/* Row 2: 상품 ID 및 상품명 검색 입력창 (가운데 정렬) */}
@@ -1917,6 +1932,122 @@ export default function AdminPage() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 카테고리 관리 팝업 모달 */}
+      {isCategoryModalOpen && (
+        <div className="customer-modal-overlay" onClick={() => setIsCategoryModalOpen(false)}>
+          <div 
+            className="customer-modal-container" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '450px',
+              padding: '24px',
+              borderRadius: '16px'
+            }}
+          >
+            <div className="customer-modal-header" style={{ marginBottom: '20px' }}>
+              <div>
+                <span className="customer-modal-subtitle">MANAGEMENT</span>
+                <h2 className="customer-modal-title" style={{ fontSize: '1.3rem', margin: '4px 0 0 0' }}>
+                  카테고리 편집
+                </h2>
+              </div>
+              <button 
+                type="button"
+                className="customer-modal-close-btn"
+                onClick={() => setIsCategoryModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-h)',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="customer-modal-body" style={{ maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.4' }}>
+                삭제할 카테고리 우측의 X 표시를 누르면 해당 카테고리가 삭제되며, 소속된 모든 상품이 '미지정'으로 변경됩니다.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                {Array.from(new Set(dbProducts.map(p => p.category).filter(Boolean))).map((cat) => (
+                  <div
+                    key={cat}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '20px',
+                      border: '1.5px solid var(--border)',
+                      backgroundColor: 'var(--accent-bg)',
+                      color: 'var(--text-h)',
+                      fontSize: '0.9rem',
+                      fontWeight: '700'
+                    }}
+                  >
+                    <span>{cat}</span>
+                    <span
+                      onClick={() => handleDeleteCategory(cat)}
+                      style={{
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--text-h)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      &times;
+                    </span>
+                  </div>
+                ))}
+                {Array.from(new Set(dbProducts.map(p => p.category).filter(Boolean))).length === 0 && (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', width: '100%', textAlign: 'center', padding: '20px 0' }}>
+                    등록된 카테고리가 없습니다.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', borderTop: '1.5px solid var(--border)', paddingTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: '1.5px solid var(--border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-h)',
+                  cursor: 'pointer',
+                  fontWeight: '800',
+                  fontSize: '0.88rem'
+                }}
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
