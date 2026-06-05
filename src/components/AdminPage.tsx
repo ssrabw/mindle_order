@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { supabase } from '../api/supabase';
 
 interface VariantInput {
@@ -59,7 +59,7 @@ const deleteCookie = (name: string) => {
 };
 
 export default function AdminPage() {
-  const navigate = useNavigate();
+
 
   // Authentication State
   const [password, setPassword] = useState<string>('');
@@ -68,7 +68,7 @@ export default function AdminPage() {
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
 
   // Tab State: 'manage' | 'register' | 'customers'
-  const [activeTab, setActiveTab] = useState<'manage' | 'register' | 'customers'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'register'>('manage');
 
   // DB Products and Variants for Management
   const [dbProducts, setDbProducts] = useState<ProductFromDb[]>([]);
@@ -646,12 +646,6 @@ export default function AdminPage() {
         >
           📦 상품 등록
         </button>
-        <button
-          className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
-          onClick={() => navigate('/admin/customers')}
-        >
-          🤝 거래처 관리
-        </button>
       </nav>
 
       {/* Tab Contents */}
@@ -972,13 +966,6 @@ export default function AdminPage() {
                 })()}
               </>
             )}
-          </div>
-        ) : activeTab === 'customers' ? (
-          <div className="customers-placeholder-card glassmorphism">
-            <div className="placeholder-icon">🤝</div>
-            <h2>거래처 관리 서비스 개발 대기 중</h2>
-            <p>이 탭은 추후 거래처의 정보를 열람, 수정, 주문 현황 확인 등의 관리 기능을 배치하기 위한 영역입니다.</p>
-            <p className="hint-text">현재는 상품 등록 기능이 핵심 사양으로 활성화되어 있습니다.</p>
           </div>
         ) : (
           <form onSubmit={handleProductSubmit} className="product-register-form">
