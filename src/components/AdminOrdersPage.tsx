@@ -192,6 +192,17 @@ export default function AdminOrdersPage() {
       setCookie('admin_auth', 'true', 7);
       setIsAuthenticated(true);
       setAuthError('');
+
+      // 어드민 로그인 성공 시 웹 푸시 알림 권한 요청 및 동기화 트리거
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(() => {
+            window.dispatchEvent(new Event('storage'));
+          });
+        } else {
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
     } catch (err: any) {
       console.error('Auth handler error:', err);
       setAuthError(`❌ 인증 처리 중 오류 발생: ${err.message || JSON.stringify(err)}`);

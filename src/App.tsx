@@ -237,6 +237,90 @@ function MainLayout() {
     }
   };
 
+  // --- 웹 푸시(Web Push) 구독 관련 설정 및 동기화 ---
+  const VAPID_PUBLIC_KEY = "BMWl463XnrjC3mJWZQGScxJUb0fTG2Qsuv6SeKMCGjEHkjXD0VQYFYW64KNu4c7CAGMzULCMvP5rVRJd1pf7hRQ";
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const syncPushSubscription = async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const existingSubscription = await reg.pushManager.getSubscription();
+
+      const customerPhone = localStorage.getItem('customer_phone');
+      const notificationAgreed = localStorage.getItem('notification_agreed') === 'true';
+      const isAdmin = getCookie('admin_auth') === 'true';
+
+      // 동의하지 않았거나 어드민도 아니고 고객 전화번호도 없는 경우 -> 기존 구독 해제 및 DB 삭제
+      if (!isAdmin && (!customerPhone || !notificationAgreed)) {
+        if (existingSubscription) {
+          await existingSubscription.unsubscribe();
+          await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('endpoint', existingSubscription.endpoint);
+          console.log('[WebPush] 푸시 알림 동의 해제로 인한 구독 취소 완료');
+        }
+        return;
+      }
+
+      // 알림 권한이 허용되지 않았다면 패스 (권한 승인은 주문 시 또는 어드민 로그인 시 승인)
+      if (Notification.permission !== 'granted') {
+        return;
+      }
+
+      // 구독 정보 획득 또는 신규 생성
+      let subscription = existingSubscription;
+      if (!subscription) {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+
+      const subJson = subscription.toJSON();
+      if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
+        throw new Error('올바르지 않은 구독 토큰 정보입니다.');
+      }
+
+      const role = isAdmin ? 'admin' : 'customer';
+      const phoneVal = isAdmin ? null : customerPhone;
+
+      // Supabase push_subscriptions 테이블에 토큰 저장
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          endpoint: subJson.endpoint,
+          customer_phone: phoneVal,
+          role: role,
+          keys_p256dh: subJson.keys.p256dh,
+          keys_auth: subJson.keys.auth
+        });
+
+      if (error) throw error;
+      console.log(`[WebPush] 구독 토큰 최신화 완료 (Role: ${role}, Phone: ${phoneVal})`);
+    } catch (err) {
+      console.error('[WebPush] 구독 동기화 중 에러 발생:', err);
+    }
+  };
+
   // 서비스 워커를 지원하는 환경(모바일 크롬 등)에서 알림을 지원하기 위한 공용 래퍼 함수
   const showWebNotification = async (title: string, options: NotificationOptions = {}) => {
     const defaultOptions = {
@@ -276,6 +360,7 @@ function MainLayout() {
     let currentSubscribedPhone: string | null = null;
 
     const checkAndSubscribe = () => {
+      syncPushSubscription(); // 웹 푸시 구독 정보 동기화 추가
       const customerPhone = localStorage.getItem('customer_phone');
       const notificationAgreed = localStorage.getItem('notification_agreed') === 'true';
 
@@ -376,6 +461,7 @@ function MainLayout() {
     let isSubscribed = false;
 
     const checkAdminAndSubscribe = () => {
+      syncPushSubscription(); // 웹 푸시 구독 정보 동기화 추가
       const isAdmin = getCookie('admin_auth') === 'true';
 
       if (!isAdmin) {

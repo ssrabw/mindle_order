@@ -363,6 +363,7 @@ ${data.shop_name}
       localStorage.setItem('last_order_id', String(newOrderId));
       localStorage.setItem('notification_agreed', notificationAgreed ? 'true' : 'false');
       localStorage.setItem('customer_phone', parsedPhone);
+      window.dispatchEvent(new Event('storage')); // 즉각적인 알림 구독 동기화 트리거
 
       // Save data for success display
       const orderDetails = {

@@ -24,3 +24,28 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// 백그라운드 웹 푸시 리스너 추가
+self.addEventListener('push', (event) => {
+  let data = { title: '민들레 도매', body: '새로운 알림이 있습니다.' };
+
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: '민들레 도매', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    data: data.data || {},
+    vibrate: [200, 100, 200]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
