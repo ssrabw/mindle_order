@@ -41,9 +41,12 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
         </nav>
         {!isAdmin ? (
           <div className="header-actions">
-            <button className="cart-text-btn" onClick={onCartClick} aria-label="담아둔 상품 주문하기">
-              <span className="cart-btn-desktop">담아둔 상품 주문하기 ({totalItems}개)</span>
-              <span className="cart-btn-mobile">장바구니 ({totalItems}개)</span>
+            <Link to="/my-orders" className="my-orders-btn">
+              내 주문 보기
+            </Link>
+            <button className="cart-text-btn" onClick={onCartClick} aria-label="상품 주문하기">
+              <span className="cart-btn-desktop">상품 주문하기 ({totalItems}개)</span>
+              <span className="cart-btn-mobile">상품 주문하기 ({totalItems}개)</span>
             </button>
           </div>
         ) : (
@@ -187,6 +190,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 }
 
 function MainLayout() {
+  const navigate = useNavigate();
   const isCartOpen = useCartStore((state) => state.isCartOpen);
   const setIsCartOpen = useCartStore((state) => state.setIsCartOpen);
 
@@ -347,7 +351,14 @@ function MainLayout() {
 
     // 2단계: 데스크톱/일반 환경용 standard Notification 생성자로 폴백
     try {
-      new Notification(title, defaultOptions);
+      const notification = new Notification(title, defaultOptions);
+      notification.onclick = (e) => {
+        e.preventDefault();
+        window.focus();
+        const url = (defaultOptions as any).data?.url || '/';
+        navigate(url);
+        notification.close();
+      };
     } catch (err) {
       console.error('표준 Notification 생성 실패:', err);
     }
@@ -403,7 +414,8 @@ function MainLayout() {
 
             if (newStatus !== oldStatus && newStatus === '포장 완료') {
               showWebNotification('민들레 도매', {
-                body: `주문하신 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
+                body: `주문하신 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`,
+                data: { url: '/my-orders' }
               });
               // 알림 사운드 재생
               playNotificationSound();
@@ -431,7 +443,8 @@ function MainLayout() {
 
             if (newStatus !== oldStatus && newStatus === '미송포장완료') {
               showWebNotification('민들레 도매 (미송 완료)', {
-                body: `미송 주문 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`
+                body: `미송 주문 상품 포장이 완료되었습니다! 매장에서 수령하시거나 배송을 확인해 주세요.`,
+                data: { url: '/my-orders' }
               });
               // 알림 사운드 재생
               playNotificationSound();
@@ -505,6 +518,7 @@ function MainLayout() {
 
             showWebNotification('새 주문 접수 🔔', {
               body: `${shopName}님의 새 도매 주문이 접수되었습니다!\n금액: ${price.toLocaleString()}원`,
+              data: { url: '/admin/orders' }
             });
 
             // 웹 오디오 알림 사운드 실행

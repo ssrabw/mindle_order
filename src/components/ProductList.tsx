@@ -75,11 +75,6 @@ const ProductList: React.FC = () => {
 
   return (
     <div className="product-list-container">
-      <div className="my-orders-banner">
-        <Link to="/my-orders" className="my-orders-banner-btn">
-          내 주문 보기
-        </Link>
-      </div>
       <h1 className="product-list-title">민들레 상품 목록</h1>
 
       {/* Category & Search Filter Bar */}

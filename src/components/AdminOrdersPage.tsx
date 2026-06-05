@@ -400,6 +400,13 @@ export default function AdminOrdersPage() {
           }
         }
       } else {
+        if (newStatus === '주문 취소') {
+          if (!window.confirm("정말 이 주문을 취소하시겠습니까? 취소된 주문은 복구할 수 없습니다.")) {
+            // Revert state change
+            setOrders(prev => [...prev]);
+            return;
+          }
+        }
         try {
           setIsLoading(true);
           const { error } = await supabase
@@ -573,7 +580,12 @@ export default function AdminOrdersPage() {
       // 1. 상태 필터(statusFilter) 적용
       if (statusFilter === 'active') {
         if (activeTab === 'order') {
-          if (order.status !== '주문 미확인' && order.status !== '주문 확인' && order.status !== '주문') {
+          if (
+            order.status !== '주문 미확인' &&
+            order.status !== '주문 확인' &&
+            order.status !== '주문' &&
+            order.status !== '주문 취소'
+          ) {
             return false;
           }
         } else {
@@ -680,61 +692,61 @@ export default function AdminOrdersPage() {
       </header>
 
       {/* 주문 / 미송 목록 탭 */}
-      <div className="admin-orders-tab-bar" style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+      <div className="admin-orders-tab-bar" style={{ display: 'flex', gap: '8px', marginBottom: '20px', justifyContent: 'flex-end' }}>
         <button
           onClick={() => setActiveTab('order')}
           style={{
-            padding: '12px 24px',
+            padding: '8px 16px',
             borderRadius: '10px',
             border: activeTab === 'order' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
             backgroundColor: activeTab === 'order' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
             color: activeTab === 'order' ? '#000000' : '#4b5563',
-            fontWeight: '800',
-            fontSize: '1rem',
+            fontWeight: '500',
+            fontSize: '0.85rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
           }}
         >
-          📦 주문 목록
+          주문 목록
         </button>
         <button
           onClick={() => setActiveTab('misong')}
           style={{
-            padding: '12px 24px',
+            padding: '8px 16px',
             borderRadius: '10px',
             border: activeTab === 'misong' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
             backgroundColor: activeTab === 'misong' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
             color: activeTab === 'misong' ? '#000000' : '#4b5563',
-            fontWeight: '800',
-            fontSize: '1rem',
+            fontWeight: '500',
+            fontSize: '0.85rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
           }}
         >
-          ⏳ 미송 목록
+          미송 목록
         </button>
       </div>
 
       {/* Date Filter Choices */}
-      <div className="orders-filter-bar glassmorphism" style={{ 
-        padding: '16px', 
-        borderRadius: '14px', 
-        marginBottom: '24px', 
-        display: 'flex', 
-        flexDirection: 'column', 
+      <div className="orders-filter-bar glassmorphism" style={{
+        padding: '16px',
+        borderRadius: '14px',
+        marginBottom: '24px',
+        display: 'flex',
+        flexDirection: 'column',
         gap: '12px',
         alignItems: 'center'
       }}>
         {/* Row 1: 상호 및 전화번호 검색 입력창 & 필터 토글 버튼 */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
           width: '100%',
           maxWidth: '500px',
           boxSizing: 'border-box'
         }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span>
+          {/* <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span> */}
           <input
             type="text"
             placeholder="상호 또는 전화번호 검색"
@@ -774,11 +786,11 @@ export default function AdminOrdersPage() {
         </div>
 
         {/* Row 2: 상태 필터 (주문 / 포장 완료) 상시 노출 */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          gap: '12px', 
+          gap: '12px',
           width: '100%',
           maxWidth: '500px',
           boxSizing: 'border-box',
@@ -791,16 +803,16 @@ export default function AdminOrdersPage() {
               padding: '10px 16px',
               borderRadius: '12px',
               border: '1.5px solid transparent',
-              backgroundColor: statusFilter === 'active' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.03)',
-              borderColor: statusFilter === 'active' ? 'rgba(139, 92, 246, 0.4)' : 'transparent',
-              color: statusFilter === 'active' ? '#8b5cf6' : 'var(--text-muted)',
+              backgroundColor: statusFilter === 'active' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(0, 0, 0, 0.03)',
+              borderColor: statusFilter === 'active' ? 'rgba(245, 158, 11, 0.4)' : 'transparent',
+              color: statusFilter === 'active' ? '#f59e0b' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.95rem',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
           >
-            📋 {activeTab === 'order' ? '주문' : '미송'}
+            📋 {activeTab === 'order' ? '포장 미완료' : '미송'}
           </button>
           <button
             onClick={() => setStatusFilter('completed')}

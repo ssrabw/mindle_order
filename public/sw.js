@@ -9,17 +9,21 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // 이미 열린 탭/창이 있다면 포커스 처리
+      // 이미 열린 탭/창이 있다면 포커스 처리 및 URL 이동
       for (const client of clientList) {
         if ('focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(urlToOpen);
+          }
           return client.focus();
         }
       }
-      // 열린 창이 없으면 메인 페이지 새로 열기
+      // 열린 창이 없으면 지정된 URL 새로 열기
       if (self.clients.openWindow) {
-        return self.clients.openWindow('/');
+        return self.clients.openWindow(urlToOpen);
       }
     })
   );
