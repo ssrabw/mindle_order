@@ -428,12 +428,76 @@ export default function AdminPage() {
     }
   };
 
+  // Helper function to compress image using Canvas API
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // 해상도 제한 (가로 세로 최대 1200px)
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+
+          if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+            if (width > height) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            } else {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // 75% 화질의 JPEG 포맷으로 압축 인코딩
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                resolve(file);
+              }
+            },
+            'image/jpeg',
+            0.75
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Helper function to upload image to ImgBB with custom filename
   const uploadToImgBB = async (file: File, customName: string): Promise<string> => {
+    // 업로드 전 이미지 압축 처리 가동
+    const compressedBlob = await compressImage(file);
     const formData = new FormData();
-    const fileExtension = file.name.split('.').pop() || 'jpg';
-    // Re-create file object with custom filename
-    const renamedFile = new File([file], `${customName}.${fileExtension}`, { type: file.type });
+    const fileExtension = 'jpg'; // JPEG 압축으로 통일되므로 확장자는 jpg 고정
+    // Blob 데이터를 기반으로 새로운 File 객체 생성
+    const renamedFile = new File([compressedBlob], `${customName}.${fileExtension}`, { type: 'image/jpeg' });
     formData.append('image', renamedFile);
     formData.append('name', customName);
 
@@ -554,6 +618,41 @@ export default function AdminPage() {
       setNewCustomCategoryValue('');
     } catch (err: any) {
       alert(`카테고리 수정 중 오류: ${err.message}`);
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  // Delete Category and batch reset products category
+  const handleDeleteCategory = async (categoryName: string) => {
+    const isConfirmed = window.confirm(
+      `정말 '${categoryName}' 카테고리를 삭제하시겠습니까?\n해당 카테고리가 지정된 모든 상품들이 '미지정' 상태로 일괄 변경됩니다.`
+    );
+
+    if (!isConfirmed) return;
+
+    setIsLoadingDb(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ category: '' })
+        .eq('category', categoryName);
+
+      if (error) throw error;
+
+      // 로컬 캐시 동기화
+      setDbProducts((prev) =>
+        prev.map((p) => (p.category === categoryName ? { ...p, category: '' } : p))
+      );
+
+      // 만약 현재 삭제된 카테고리를 필터링 중이었다면 '전체'로 복구
+      if (selectedCategory === categoryName) {
+        setSelectedCategory('전체');
+      }
+
+      alert('카테고리가 성공적으로 삭제되었습니다.');
+    } catch (err: any) {
+      alert(`카테고리 삭제 중 오류: ${err.message}`);
     } finally {
       setIsLoadingDb(false);
     }
@@ -904,8 +1003,24 @@ export default function AdminPage() {
                           key={cat}
                           className={`filter-tag-btn ${selectedCategory === cat ? 'active' : ''}`}
                           onClick={() => setSelectedCategory(cat)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
                         >
-                          {cat}
+                          <span>{cat}</span>
+                          {cat !== '전체' && (
+                            <span
+                              className="delete-category-icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCategory(cat);
+                              }}
+                            >
+                              &times;
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
