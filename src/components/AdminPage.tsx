@@ -507,7 +507,14 @@ export default function AdminPage() {
     });
 
     if (!response.ok) {
-      throw new Error(`이미지 업로드 실패: ${response.statusText}`);
+      let errMsg = '';
+      try {
+        const errJson = await response.json();
+        if (errJson && errJson.error) {
+          errMsg = errJson.error;
+        }
+      } catch (_) {}
+      throw new Error(`이미지 업로드 실패: ${errMsg || response.statusText || response.status}`);
     }
 
     const result = await response.json();

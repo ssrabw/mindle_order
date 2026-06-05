@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+declare var Buffer: any;
+
 // Cloudflare Workers Type Definitions
 interface Fetcher {
   fetch(request: Request | string, init?: RequestInit): Promise<Response>;
@@ -155,20 +157,35 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
       });
     }
 
-    // ImgBB 업로드 페이로드 준비
-    const uploadFormData = new FormData();
-    uploadFormData.append('image', imageFile);
+    // 파일 데이터를 ArrayBuffer로 읽은 후 Buffer를 통해 Base64로 인코딩
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString('base64');
+
+    // ImgBB API 규격에 맞게 x-www-form-urlencoded 페이로드 준비
+    const params = new URLSearchParams();
+    params.append('image', base64Image);
     if (customName) {
-      uploadFormData.append('name', customName);
+      params.append('name', customName);
     }
 
     const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
       method: 'POST',
-      body: uploadFormData,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
     });
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ success: false, error: `ImgBB 업로드 실패: ${response.statusText}` }), {
+      let remoteError = response.statusText;
+      try {
+        const remoteJson: any = await response.json();
+        if (remoteJson && remoteJson.error && remoteJson.error.message) {
+          remoteError = remoteJson.error.message;
+        }
+      } catch (_) {}
+
+      return new Response(JSON.stringify({ success: false, error: `ImgBB 업로드 실패: ${remoteError || response.status}` }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
       });
