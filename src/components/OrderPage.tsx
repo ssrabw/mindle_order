@@ -121,10 +121,15 @@ const OrderPage: React.FC = () => {
         setAddress(data.address);
         setDetailAddress(data.detail_address);
         setLookupStatus('member');
-        alert(`기존 회원 정보를 불러왔습니다: ${data.shop_name}`);
+        alert(`기존 회원 정보를 불러왔습니다!
+
+${data.shop_name}
+`);
       } else {
         setLookupStatus('new');
-        alert('조회 결과 일치하는 회원 정보가 없습니다. 신규 정보로 작성해 주세요.');
+        alert(`조회 결과 일치하는 회원 정보가 없습니다.
+
+신규 회원으로 가입합니다.`);
       }
     } catch (err: any) {
       console.error('고객 조회 오류:', err);
@@ -133,10 +138,19 @@ const OrderPage: React.FC = () => {
     }
   };
 
-  // Scroll to top on mount
+  // Scroll to top on mount or when order succeeds
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [isOrdered]);
 
   // Dynamically load Daum Postcode script
   useEffect(() => {
@@ -201,6 +215,7 @@ const OrderPage: React.FC = () => {
   const basePrice = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const deliveryFee = (deliveryMethod === 'courier' && !hasExistingOrderToday) ? 3000 : 0;
   const totalPrice = basePrice + deliveryFee;
+  const isFieldsDisabled = !(lookupStatus === 'member' || lookupStatus === 'new');
 
   // Handle browser push notification permission request
   const handleNotificationChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,6 +362,7 @@ const OrderPage: React.FC = () => {
       // 4. 로컬 스토리지에 마지막 주문 정보 저장 (실시간 알림 감지용)
       localStorage.setItem('last_order_id', String(newOrderId));
       localStorage.setItem('notification_agreed', notificationAgreed ? 'true' : 'false');
+      localStorage.setItem('customer_phone', parsedPhone);
 
       // Save data for success display
       const orderDetails = {
@@ -535,12 +551,17 @@ const OrderPage: React.FC = () => {
                 <input
                   type="tel"
                   id="phone"
-                  placeholder="예) 010-6374-3229 (숫자만 입력하셔도 됩니다)"
+                  placeholder="예) 01063743229"
                   value={phone}
                   onChange={(e) => {
                     setPhone(e.target.value);
                     if (lookupStatus !== 'idle') {
                       setLookupStatus('idle');
+                      setShopName('');
+                      setPostcode('');
+                      setAddress('');
+                      setDetailAddress('');
+                      setShopDeliveryInfo('');
                     }
                   }}
                   required
@@ -559,208 +580,212 @@ const OrderPage: React.FC = () => {
               )}
             </div>
 
-            {/* 2. 지역 및 상호명 */}
-            <div className="form-group">
-              <label htmlFor="shopName">2. 지역 및 상호명 <span className="required">*</span></label>
-              <input
-                type="text"
-                id="shopName"
-                placeholder="예) 서울 민들레, 부산 상사"
-                value={shopName}
-                onChange={(e) => setShopName(e.target.value)}
-                required
-              />
-              <p className="field-hint">배송지역과 도매 상호명을 함께 적어주세요.</p>
-            </div>
-
-            {/* 3. 배송 주소 (카카오 우편번호 API 연동) */}
-            <div className="form-group">
-              <label>3. 배송 주소 <span className="required">*</span></label>
-              <div className="address-search-group">
-                <input
-                  type="text"
-                  id="postcode"
-                  placeholder="우편번호"
-                  value={postcode}
-                  readOnly
-                  required
-                />
-                <button type="button" className="address-search-btn" onClick={handleAddressSearch}>
-                  🔍 우편번호 찾기
-                </button>
-              </div>
-              <input
-                type="text"
-                id="address"
-                placeholder="기본 주소 (검색 시 자동 입력)"
-                value={address}
-                readOnly
-                required
-              />
-              <input
-                type="text"
-                id="detailAddress"
-                placeholder="상세 주소를 입력해 주세요 (예: 101동 202호)"
-                value={detailAddress}
-                onChange={(e) => setDetailAddress(e.target.value)}
-                required
-              />
-            </div>
-
-            {/* 4. 배송 및 결제방식 선택 */}
-            <div className="form-group">
-              <label>4. 배송 및 결제방식 선택 <span className="required">*</span></label>
-
-              <div className="delivery-selector-title">🚚 배송 방식 선택</div>
-              <div className="delivery-selector">
-
-                <label className={`delivery-option ${deliveryMethod === 'uncle' ? 'active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="delivery"
-                    value="uncle"
-                    checked={deliveryMethod === 'uncle'}
-                    onChange={() => {
-                      setDeliveryMethod('uncle');
-                      setPaymentMethod('bank');
-                    }}
-                  />
-                  <span className="option-title">👨 삼촌</span>
-                  <span className="option-desc">도매 매장 삼촌 대행 배송</span>
-                </label>
-
-                <label className={`delivery-option ${deliveryMethod === 'courier' ? 'active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="delivery"
-                    value="courier"
-                    checked={deliveryMethod === 'courier'}
-                    onChange={() => {
-                      setDeliveryMethod('courier');
-                      setPaymentMethod('bank'); // 택배는 계좌이체 고정
-                    }}
-                  />
-                  <span className="option-title">📦 택배</span>
-                  <span className="option-desc">
-                    {hasExistingOrderToday
-                      ? '오늘 주문 건과 합배송되어 배송비 무료! 🎁'
-                      : '택배비 3,000원 추가 (계좌이체 전용)'}
-                  </span>
-                </label>
-
-                <label className={`delivery-option ${deliveryMethod === 'shop' ? 'active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="delivery"
-                    value="shop"
-                    checked={deliveryMethod === 'shop'}
-                    onChange={() => {
-                      setDeliveryMethod('shop');
-                      setPaymentMethod('bank');
-                    }}
-                  />
-                  <span className="option-title">🏬 근처 매장에 전달</span>
-                  <span className="option-desc">인근 매장으로 전달 정산</span>
-                </label>
-              </div>
-
-              {/* 매장 정보 입력 (근처 매장에 전달 선택 시 노출) */}
-              {deliveryMethod === 'shop' && (
-                <div className="shop-delivery-info-box">
-                  <label htmlFor="shopDeliveryInfo">전달받을 매장명 및 호수 <span className="required">*</span></label>
+            {!isFieldsDisabled && (
+              <>
+                {/* 2. 지역 및 상호명 */}
+                <div className="form-group">
+                  <label htmlFor="shopName">2. 지역 및 상호명 <span className="required">*</span></label>
                   <input
                     type="text"
-                    id="shopDeliveryInfo"
-                    placeholder="예) 민들레 아트지하 106호"
-                    value={shopDeliveryInfo}
-                    onChange={(e) => setShopDeliveryInfo(e.target.value)}
+                    id="shopName"
+                    placeholder="예) 서울 민들레, 부산 상사"
+                    value={shopName}
+                    onChange={(e) => setShopName(e.target.value)}
+                    required
+                  />
+                  <p className="field-hint">배송지역과 도매 상호명을 함께 적어주세요.</p>
+                </div>
+
+                {/* 3. 배송 주소 (카카오 우편번호 API 연동) */}
+                <div className="form-group">
+                  <label>3. 배송 주소 <span className="required">*</span></label>
+                  <div className="address-search-group">
+                    <input
+                      type="text"
+                      id="postcode"
+                      placeholder="우편번호"
+                      value={postcode}
+                      readOnly
+                      required
+                    />
+                    <button type="button" className="address-search-btn" onClick={handleAddressSearch}>
+                      🔍 우편번호 찾기
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    id="address"
+                    placeholder="기본 주소 (검색 시 자동 입력)"
+                    value={address}
+                    readOnly
+                    required
+                  />
+                  <input
+                    type="text"
+                    id="detailAddress"
+                    placeholder="상세 주소 (예: 101동 202호)"
+                    value={detailAddress}
+                    onChange={(e) => setDetailAddress(e.target.value)}
                     required
                   />
                 </div>
-              )}
 
-              <div className="payment-selector-title">💳 결제 방식 선택</div>
-              <div className="payment-selector">
-                <label className={`payment-option ${paymentMethod === 'bank' ? 'active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="bank"
-                    checked={paymentMethod === 'bank'}
-                    onChange={() => setPaymentMethod('bank')}
-                  />
-                  <span className="option-title">🏦 계좌이체</span>
-                  <span className="option-desc">계좌로 주문 대금을 송금합니다.</span>
-                </label>
+                {/* 4. 배송 및 결제방식 선택 */}
+                <div className="form-group">
+                  <label>4. 배송 및 결제방식 선택 <span className="required">*</span></label>
 
-                {/* 삼촌 배송 시 삼촌 대납 노출 */}
-                {deliveryMethod === 'uncle' && (
-                  <label className={`payment-option ${paymentMethod === 'uncle' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="uncle"
-                      checked={paymentMethod === 'uncle'}
-                      onChange={() => setPaymentMethod('uncle')}
-                    />
-                    <span className="option-title">👨 삼촌 대납</span>
-                    <span className="option-desc">매장 삼촌(대행인)이 현장에서 정산합니다.</span>
-                  </label>
-                )}
+                  <div className="delivery-selector-title">🚚 배송 방식 선택</div>
+                  <div className="delivery-selector">
 
-                {/* 매장 전달 시 해당 매장에서 대납 노출 */}
-                {deliveryMethod === 'shop' && (
-                  <label className={`payment-option ${paymentMethod === 'shopProxy' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="shopProxy"
-                      checked={paymentMethod === 'shopProxy'}
-                      onChange={() => setPaymentMethod('shopProxy')}
-                    />
-                    <span className="option-title">🏬 해당 매장에서 대납</span>
-                    <span className="option-desc">전달받는 매장에서 대납 정산합니다.</span>
-                  </label>
-                )}
-              </div>
+                    <label className={`delivery-option ${deliveryMethod === 'uncle' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="delivery"
+                        value="uncle"
+                        checked={deliveryMethod === 'uncle'}
+                        onChange={() => {
+                          setDeliveryMethod('uncle');
+                          setPaymentMethod('bank');
+                        }}
+                      />
+                      <span className="option-title">👨 삼촌</span>
+                      <span className="option-desc">도매 매장 삼촌 대행 배송</span>
+                    </label>
 
-              {/* 계좌이체 선택 시 노출 */}
-              {paymentMethod === 'bank' && (
-                <div className="bank-account-box">
-                  <p className="bank-title">송금 계좌 정보</p>
-                  <p className="bank-number">민들레은행 123-45678-90-123</p>
-                  <p className="bank-owner">예금주: 민들레도매</p>
-                  <p className="bank-notice">* 입금 시 꼭 [상호명] 이름으로 입금해 주세요.</p>
-                </div>
-              )}
-            </div>
+                    <label className={`delivery-option ${deliveryMethod === 'courier' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="delivery"
+                        value="courier"
+                        checked={deliveryMethod === 'courier'}
+                        onChange={() => {
+                          setDeliveryMethod('courier');
+                          setPaymentMethod('bank'); // 택배는 계좌이체 고정
+                        }}
+                      />
+                      <span className="option-title">📦 택배</span>
+                      <span className="option-desc">
+                        {hasExistingOrderToday
+                          ? '오늘 주문 건과 합배송되어 배송비 무료! 🎁'
+                          : '택배비 3,000원 추가 (계좌이체 전용)'}
+                      </span>
+                    </label>
 
-            {/* 5. 알림 동의 */}
-            <div className="form-group">
-              <label>5. 포장완료 알림받기 동의</label>
-              <div className="notification-consent-box">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={notificationAgreed}
-                    onChange={handleNotificationChange}
-                  />
-                  <span className="checkbox-text">
-                    상품 포장이 완료되면 사용하는 휴대폰/컴퓨터 화면으로 알림창을 띄우는 것에 동의합니다.
-                  </span>
-                </label>
-
-                {notificationAgreed && (
-                  <div className={`notification-badge ${notificationStatus === '허용됨' ? 'success' : 'pending'}`}>
-                    알림 설정 상태: <strong>{notificationStatus}</strong>
+                    <label className={`delivery-option ${deliveryMethod === 'shop' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="delivery"
+                        value="shop"
+                        checked={deliveryMethod === 'shop'}
+                        onChange={() => {
+                          setDeliveryMethod('shop');
+                          setPaymentMethod('bank');
+                        }}
+                      />
+                      <span className="option-title">🏬 근처 매장에 전달</span>
+                      <span className="option-desc">인근 매장으로 전달 정산</span>
+                    </label>
                   </div>
-                )}
-              </div>
-            </div>
 
-            <button type="submit" className="submit-order-btn">
-              상품 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
-            </button>
+                  {/* 매장 정보 입력 (근처 매장에 전달 선택 시 노출) */}
+                  {deliveryMethod === 'shop' && (
+                    <div className="shop-delivery-info-box">
+                      <label htmlFor="shopDeliveryInfo">전달받을 매장명 및 호수 <span className="required">*</span></label>
+                      <input
+                        type="text"
+                        id="shopDeliveryInfo"
+                        placeholder="예) 민들레 아트지하 106호"
+                        value={shopDeliveryInfo}
+                        onChange={(e) => setShopDeliveryInfo(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="payment-selector-title">💳 결제 방식 선택</div>
+                  <div className="payment-selector">
+                    <label className={`payment-option ${paymentMethod === 'bank' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="bank"
+                        checked={paymentMethod === 'bank'}
+                        onChange={() => setPaymentMethod('bank')}
+                      />
+                      <span className="option-title">🏦 계좌이체</span>
+                      <span className="option-desc">계좌로 주문 대금을 송금합니다.</span>
+                    </label>
+
+                    {/* 삼촌 배송 시 삼촌 대납 노출 */}
+                    {deliveryMethod === 'uncle' && (
+                      <label className={`payment-option ${paymentMethod === 'uncle' ? 'active' : ''}`}>
+                        <input
+                          type="radio"
+                          name="payment"
+                          value="uncle"
+                          checked={paymentMethod === 'uncle'}
+                          onChange={() => setPaymentMethod('uncle')}
+                        />
+                        <span className="option-title">👨 삼촌 대납</span>
+                        <span className="option-desc">매장 삼촌(대행인)이 현장에서 정산합니다.</span>
+                      </label>
+                    )}
+
+                    {/* 매장 전달 시 해당 매장에서 대납 노출 */}
+                    {deliveryMethod === 'shop' && (
+                      <label className={`payment-option ${paymentMethod === 'shopProxy' ? 'active' : ''}`}>
+                        <input
+                          type="radio"
+                          name="payment"
+                          value="shopProxy"
+                          checked={paymentMethod === 'shopProxy'}
+                          onChange={() => setPaymentMethod('shopProxy')}
+                        />
+                        <span className="option-title">🏬 해당 매장에서 대납</span>
+                        <span className="option-desc">전달받는 매장에서 대납 정산합니다.</span>
+                      </label>
+                    )}
+                  </div>
+
+                  {/* 계좌이체 선택 시 노출 */}
+                  {paymentMethod === 'bank' && (
+                    <div className="bank-account-box">
+                      <p className="bank-title">송금 계좌 정보</p>
+                      <p className="bank-number">민들레은행 123-45678-90-123</p>
+                      <p className="bank-owner">예금주: 민들레도매</p>
+                      <p className="bank-notice">* 입금 시 꼭 [상호명] 이름으로 입금해 주세요.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. 알림 동의 */}
+                <div className="form-group">
+                  <label>5. 포장완료 알림받기 동의</label>
+                  <div className="notification-consent-box">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={notificationAgreed}
+                        onChange={handleNotificationChange}
+                      />
+                      <span className="checkbox-text">
+                        상품 포장이 완료되면 사용하는 휴대폰/컴퓨터 화면으로 알림창을 띄우는 것에 동의합니다.
+                      </span>
+                    </label>
+
+                    {notificationAgreed && (
+                      <div className={`notification-badge ${notificationStatus === '허용됨' ? 'success' : 'pending'}`}>
+                        알림 설정 상태: <strong>{notificationStatus}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button type="submit" className="submit-order-btn">
+                  상품 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
+                </button>
+              </>
+            )}
           </form>
         </div>
 

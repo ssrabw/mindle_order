@@ -184,7 +184,7 @@ export default function MyOrdersPage() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="휴대폰 번호를 입력하세요 (예: 010-1234-5678)"
+              placeholder="휴대폰 번호를 입력하세요"
               style={{
                 width: '100%',
                 padding: '14px 16px',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../api/supabase';
 
 interface VariantInput {
@@ -59,6 +59,7 @@ const deleteCookie = (name: string) => {
 };
 
 export default function AdminPage() {
+  const navigate = useNavigate();
 
   // Authentication State
   const [password, setPassword] = useState<string>('');
@@ -647,9 +648,9 @@ export default function AdminPage() {
         </button>
         <button
           className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('customers')}
+          onClick={() => navigate('/admin/customers')}
         >
-          🤝 거래처 관리 (준비 중)
+          🤝 거래처 관리
         </button>
       </nav>
 
