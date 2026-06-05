@@ -42,8 +42,8 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
         {!isAdmin ? (
           <div className="header-actions">
             <button className="cart-text-btn" onClick={onCartClick} aria-label="담아둔 상품 주문하기">
-              <span className="cart-btn-desktop">📦 담아둔 상품 주문하기 ({totalItems}개)</span>
-              <span className="cart-btn-mobile">📦 장바구니 ({totalItems}개)</span>
+              <span className="cart-btn-desktop">담아둔 상품 주문하기 ({totalItems}개)</span>
+              <span className="cart-btn-mobile">장바구니 ({totalItems}개)</span>
             </button>
           </div>
         ) : (

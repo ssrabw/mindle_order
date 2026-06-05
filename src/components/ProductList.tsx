@@ -77,18 +77,18 @@ const ProductList: React.FC = () => {
     <div className="product-list-container">
       <div className="my-orders-banner">
         <Link to="/my-orders" className="my-orders-banner-btn">
-          🔍 내 주문 내역
+          내 주문 보기
         </Link>
       </div>
       <h1 className="product-list-title">민들레 상품 목록</h1>
 
       {/* Category & Search Filter Bar */}
-      <div className="orders-filter-bar glassmorphism" style={{ 
-        padding: '16px', 
-        borderRadius: '14px', 
-        marginBottom: '24px', 
-        display: 'flex', 
-        flexDirection: 'column', 
+      <div className="orders-filter-bar glassmorphism" style={{
+        padding: '16px',
+        borderRadius: '14px',
+        marginBottom: '24px',
+        display: 'flex',
+        flexDirection: 'column',
         gap: '12px',
         alignItems: 'center'
       }}>
@@ -106,10 +106,10 @@ const ProductList: React.FC = () => {
         </div>
 
         {/* Row 2: 검색창 */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
           width: '100%',
           maxWidth: '500px',
           boxSizing: 'border-box'
@@ -140,8 +140,8 @@ const ProductList: React.FC = () => {
       <div className="product-grid">
         {filteredProducts.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-            {searchQuery.trim() || selectedCategory !== '전체' 
-              ? '검색 및 필터 결과와 일치하는 상품이 없습니다.' 
+            {searchQuery.trim() || selectedCategory !== '전체'
+              ? '검색 및 필터 결과와 일치하는 상품이 없습니다.'
               : '등록된 상품이 없습니다.'}
           </div>
         ) : (
