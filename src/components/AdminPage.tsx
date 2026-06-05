@@ -90,6 +90,11 @@ export default function AdminPage() {
   const [isUploadingTempImage, setIsUploadingTempImage] = useState<boolean>(false);
   const [tempUploadProgress, setTempUploadProgress] = useState<string>('');
 
+  // Description Edit Modal State
+  const [editingDescProduct, setEditingDescProduct] = useState<ProductFromDb | null>(null);
+  const [isDescModalOpen, setIsDescModalOpen] = useState<boolean>(false);
+  const [tempDescription, setTempDescription] = useState<string>('');
+
   // Product ID (Generated on load/reset as a 5-digit number)
   const [productId, setProductId] = useState<number>(() => Math.floor(10000 + Math.random() * 90000));
 
@@ -472,6 +477,47 @@ export default function AdminPage() {
     updated[index] = updated[nextIdx];
     updated[nextIdx] = temp;
     setTempMainImages(updated);
+  };
+
+  // --- Description Edit Modal Handlers ---
+  const openDescEditModal = (product: ProductFromDb) => {
+    setEditingDescProduct(product);
+    setTempDescription(product.description || '');
+    setIsDescModalOpen(true);
+  };
+
+  const closeDescEditModal = () => {
+    setEditingDescProduct(null);
+    setTempDescription('');
+    setIsDescModalOpen(false);
+  };
+
+  const handleSaveDescription = async () => {
+    if (!editingDescProduct) return;
+
+    setIsLoadingDb(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ description: tempDescription.trim() })
+        .eq('id', editingDescProduct.id);
+
+      if (error) throw error;
+
+      // 로컬 캐시 상태 동기화
+      setDbProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingDescProduct.id ? { ...p, description: tempDescription.trim() } : p
+        )
+      );
+
+      alert('상세설명이 성공적으로 수정되었습니다.');
+      closeDescEditModal();
+    } catch (err: any) {
+      alert(`상세설명 수정 중 오류: ${err.message}`);
+    } finally {
+      setIsLoadingDb(false);
+    }
   };
 
   const handleAddModalMainImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -978,6 +1024,9 @@ export default function AdminPage() {
                                     </>
                                   )}
                                 </div>
+                                <div className="manage-product-desc-preview" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--text-muted)', maxHeight: '60px', overflowY: 'auto', lineHeight: '1.4', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border)', paddingTop: '6px' }}>
+                                  {product.description || '등록된 소개글이 없습니다.'}
+                                </div>
                               </div>
                               <div className="manage-product-thumbnail-wrapper" style={{ position: 'relative' }}>
                                 <img
@@ -986,28 +1035,52 @@ export default function AdminPage() {
                                   className="manage-product-thumbnail"
                                 />
                                 {!product.is_deleted && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openMainImagesEditModal(product)}
-                                    className="thumbnail-edit-btn"
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: '4px',
-                                      right: '4px',
-                                      padding: '4px 10px',
-                                      borderRadius: '12px',
-                                      border: '1.5px solid var(--border)',
-                                      backgroundColor: 'var(--bg)',
-                                      color: 'var(--text-h)',
-                                      fontWeight: '800',
-                                      fontSize: '0.75rem',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                      transition: 'all 0.2s ease-in-out'
-                                    }}
-                                  >
-                                    수정
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => openMainImagesEditModal(product)}
+                                      className="thumbnail-edit-btn"
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: '32px',
+                                        right: '4px',
+                                        padding: '3px 8px',
+                                        borderRadius: '10px',
+                                        border: '1.5px solid var(--border)',
+                                        backgroundColor: 'var(--bg)',
+                                        color: 'var(--text-h)',
+                                        fontWeight: '800',
+                                        fontSize: '0.7rem',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                        transition: 'all 0.2s ease-in-out'
+                                      }}
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openDescEditModal(product)}
+                                      className="desc-edit-btn"
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: '4px',
+                                        right: '4px',
+                                        padding: '3px 8px',
+                                        borderRadius: '10px',
+                                        border: '1.5px solid var(--border)',
+                                        backgroundColor: 'var(--bg)',
+                                        color: 'var(--text-h)',
+                                        fontWeight: '800',
+                                        fontSize: '0.7rem',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                        transition: 'all 0.2s ease-in-out'
+                                      }}
+                                    >
+                                      소개
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -1507,6 +1580,73 @@ export default function AdminPage() {
                   onClick={handleSaveMainImages}
                   disabled={isUploadingTempImage || isLoadingDb}
                   style={{ padding: '8px 20px', borderRadius: '8px', border: '2px solid var(--accent)', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '800', fontSize: '0.88rem', cursor: (isUploadingTempImage || isLoadingDb) ? 'not-allowed' : 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                >
+                  {isLoadingDb ? '저장 중...' : '저장하기'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 소개글 수정 팝업 모달 */}
+      {isDescModalOpen && editingDescProduct && (
+        <div className="customer-modal-overlay" onClick={closeDescEditModal}>
+          <div className="customer-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+            <div className="customer-modal-header">
+              <div>
+                <span className="customer-modal-subtitle">EDIT DESCRIPTION</span>
+                <h2 className="customer-modal-title">{editingDescProduct.name} 소개글 수정</h2>
+              </div>
+              <button className="customer-modal-close-btn" onClick={closeDescEditModal} aria-label="Close modal">
+                &times;
+              </button>
+            </div>
+
+            <div className="customer-modal-body" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label htmlFor="modal-description-textarea" style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-h)' }}>
+                  소개글 입력
+                </label>
+                <textarea
+                  id="modal-description-textarea"
+                  value={tempDescription}
+                  onChange={(e) => setTempDescription(e.target.value)}
+                  placeholder="상품의 상세설명(소개글)을 입력해 주세요."
+                  style={{
+                    width: '100%',
+                    height: '180px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--border)',
+                    backgroundColor: 'rgba(255,255,255,0.02)',
+                    color: 'var(--text-h)',
+                    fontSize: '0.95rem',
+                    fontWeight: '700',
+                    outline: 'none',
+                    lineHeight: '1.5',
+                    resize: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {/* 하단 제어 버튼 */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1.5px solid var(--border)', paddingTop: '16px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={closeDescEditModal}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid var(--border)', backgroundColor: 'transparent', color: 'var(--text-h)', fontWeight: '800', fontSize: '0.88rem', cursor: 'pointer' }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDescription}
+                  disabled={isLoadingDb}
+                  style={{ padding: '8px 20px', borderRadius: '8px', border: '2px solid var(--accent)', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '800', fontSize: '0.88rem', cursor: isLoadingDb ? 'not-allowed' : 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
                 >
                   {isLoadingDb ? '저장 중...' : '저장하기'}
                 </button>

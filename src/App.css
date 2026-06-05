@@ -3791,3 +3791,15 @@ select:focus {
 .restore-product-action-btn:active {
   transform: scale(0.98);
 }
+
+/* Description Edit Button hover and active states */
+.desc-edit-btn:hover {
+  background-color: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.05);
+}
+
+.desc-edit-btn:active {
+  transform: scale(0.95);
+}
