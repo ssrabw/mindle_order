@@ -3354,7 +3354,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
@@ -3481,7 +3481,7 @@
 
 /* --- Admin Customer Transaction Receipt Style --- */
 .transaction-receipt-card {
-  background: var(--code-bg);
+  background: var(--bg);
   border: 1.5px solid var(--border);
   border-radius: 12px;
   padding: 20px;

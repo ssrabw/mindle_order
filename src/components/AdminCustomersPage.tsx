@@ -482,7 +482,7 @@ export default function AdminCustomersPage() {
                               padding: '14px 20px',
                               borderRadius: '10px',
                               border: isExpanded ? '1.5px solid var(--accent)' : '1px solid var(--border)',
-                              background: isExpanded ? 'rgba(139, 92, 246, 0.03)' : 'rgba(255,255,255,0.01)',
+                              background: isExpanded ? 'var(--accent-bg)' : 'var(--bg)',
                               cursor: 'pointer',
                               transition: 'all 0.2s'
                             }}
