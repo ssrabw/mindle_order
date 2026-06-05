@@ -378,11 +378,12 @@ export default function AdminCustomersPage() {
                     style={{
                       padding: '18px 24px',
                       borderRadius: '16px',
-                      border: isSelected ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
-                      background: isSelected ? 'rgba(139, 92, 246, 0.05)' : 'rgba(255, 255, 255, 0.01)',
+                      border: isSelected ? '2.5px solid var(--accent)' : '2.5px solid var(--border)',
+                      background: isSelected ? 'rgba(139, 92, 246, 0.08)' : 'var(--glass-bg)',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease-in-out',
-                      position: 'relative'
+                      position: 'relative',
+                      boxShadow: 'var(--shadow)'
                     }}
                   >
                     {/* Header: Shop Name & Misong Badge */}

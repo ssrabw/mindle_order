@@ -33,8 +33,8 @@ function NavigationHeader({ onCartClick }: NavigationHeaderProps) {
         <nav className="nav-menu">
           {!isAdmin && (
             <>
-              <Link to="/" className="nav-link">전체 상품</Link>
-              <Link to="/my-orders" className="nav-link">🔍 주문 조회</Link>
+              <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>전체 상품</Link>
+              <Link to="/my-orders" className={`nav-link ${location.pathname === '/my-orders' ? 'active' : ''}`}>🔍 주문 조회</Link>
               <span className="nav-link disabled">도매 이용안내</span>
             </>
           )}

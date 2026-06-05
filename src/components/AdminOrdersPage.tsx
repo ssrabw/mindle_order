@@ -694,14 +694,12 @@ export default function AdminOrdersPage() {
       {/* 주문 / 미송 목록 탭 */}
       <div className="admin-orders-tab-bar" style={{ display: 'flex', gap: '8px', marginBottom: '20px', justifyContent: 'flex-end' }}>
         <button
+          className={`tab-btn ${activeTab === 'order' ? 'active' : ''}`}
           onClick={() => setActiveTab('order')}
           style={{
             padding: '8px 16px',
             borderRadius: '10px',
-            border: activeTab === 'order' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
-            backgroundColor: activeTab === 'order' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
-            color: activeTab === 'order' ? '#000000' : '#4b5563',
-            fontWeight: '500',
+            fontWeight: '700',
             fontSize: '0.85rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
@@ -710,14 +708,12 @@ export default function AdminOrdersPage() {
           주문 목록
         </button>
         <button
+          className={`tab-btn ${activeTab === 'misong' ? 'active' : ''}`}
           onClick={() => setActiveTab('misong')}
           style={{
             padding: '8px 16px',
             borderRadius: '10px',
-            border: activeTab === 'misong' ? '1.5px solid rgba(139, 92, 246, 0.6)' : '1.5px solid transparent',
-            backgroundColor: activeTab === 'misong' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
-            color: activeTab === 'misong' ? '#000000' : '#4b5563',
-            fontWeight: '500',
+            fontWeight: '700',
             fontSize: '0.85rem',
             cursor: 'pointer',
             transition: 'all 0.2s ease-in-out'
@@ -797,15 +793,12 @@ export default function AdminOrdersPage() {
           marginTop: '4px'
         }}>
           <button
+            className={`status-btn active-filter ${statusFilter === 'active' ? 'active' : ''}`}
             onClick={() => setStatusFilter('active')}
             style={{
               flex: 1,
               padding: '10px 16px',
               borderRadius: '12px',
-              border: '1.5px solid transparent',
-              backgroundColor: statusFilter === 'active' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(0, 0, 0, 0.03)',
-              borderColor: statusFilter === 'active' ? 'rgba(245, 158, 11, 0.4)' : 'transparent',
-              color: statusFilter === 'active' ? '#f59e0b' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.95rem',
               cursor: 'pointer',
@@ -815,15 +808,12 @@ export default function AdminOrdersPage() {
             📋 {activeTab === 'order' ? '포장 미완료' : '미송'}
           </button>
           <button
+            className={`status-btn completed-filter ${statusFilter === 'completed' ? 'active' : ''}`}
             onClick={() => setStatusFilter('completed')}
             style={{
               flex: 1,
               padding: '10px 16px',
               borderRadius: '12px',
-              border: '1.5px solid transparent',
-              backgroundColor: statusFilter === 'completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 0, 0, 0.03)',
-              borderColor: statusFilter === 'completed' ? 'rgba(16, 185, 129, 0.4)' : 'transparent',
-              color: statusFilter === 'completed' ? '#10b981' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.95rem',
               cursor: 'pointer',

@@ -35,7 +35,7 @@ export default function MyOrdersPage() {
       case '포장완료':
         return { label: '완료', bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
       case '미송':
-        return { label: '미송', bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' };
+        return { label: '미송', bg: 'rgba(245, 158, 11, 0.15)', color: '#d97706' };
       case '미송포장완료':
         return { label: '미송완료', bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
       case '미포장':
@@ -187,30 +187,29 @@ export default function MyOrdersPage() {
 
       {/* 검색 카드 */}
       <div className="search-card glassmorphism" style={{ padding: '16px', borderRadius: '12px', border: '1.5px solid var(--border)', marginBottom: '20px' }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
-          <div style={{ flex: 1 }}>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="휴대폰 번호를 입력하세요"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1.5px solid var(--border)',
-                backgroundColor: 'var(--code-bg)',
-                color: 'var(--text-h)',
-                fontSize: '0.95rem',
-                fontWeight: '700'
-              }}
-              required
-            />
-          </div>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="휴대폰 번호를 입력하세요"
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              borderRadius: '8px',
+              border: '1.5px solid var(--border)',
+              backgroundColor: 'var(--code-bg)',
+              color: 'var(--text-h)',
+              fontSize: '0.95rem',
+              fontWeight: '700',
+              boxSizing: 'border-box'
+            }}
+            required
+          />
           <button
             type="submit"
             style={{
-              padding: '0 20px',
+              padding: '10px 20px',
               borderRadius: '8px',
               border: 'none',
               backgroundColor: 'var(--accent)',
@@ -218,7 +217,11 @@ export default function MyOrdersPage() {
               fontSize: '0.95rem',
               fontWeight: '800',
               cursor: 'pointer',
-              transition: 'background 0.2s ease-in-out'
+              whiteSpace: 'nowrap',
+              transition: 'background 0.2s ease-in-out',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
             조회하기
@@ -271,9 +274,9 @@ export default function MyOrdersPage() {
                               'rgba(245, 158, 11, 0.15)',
                       color:
                         order.status === '포장 완료' ? '#10b981' :
-                          order.status === '주문 확인' ? '#eab308' :
+                          order.status === '주문 확인' ? '#ca8a04' :
                             isCancelled ? '#9ca3af' :
-                              '#f59e0b'
+                              '#d97706'
                     }}>
                       {order.status === '주문' ? '주문 미확인' : order.status}
                     </span>

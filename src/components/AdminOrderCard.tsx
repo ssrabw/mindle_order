@@ -34,13 +34,13 @@ export default function AdminOrderCard({
         return {
           bg: 'rgba(245, 158, 11, 0.15)',
           border: 'rgba(245, 158, 11, 0.4)',
-          color: '#f59e0b'
+          color: '#d97706'
         };
       case '주문 확인':
         return {
           bg: 'rgba(234, 179, 8, 0.15)',
           border: 'rgba(234, 179, 8, 0.4)',
-          color: '#eab308'
+          color: '#ca8a04'
         };
       case '포장 완료':
       case '미송포장완료':
@@ -219,9 +219,9 @@ export default function AdminOrderCard({
                         'rgba(245, 158, 11, 0.15)',
                 color:
                   order.status === '포장 완료' || order.status === '미송포장완료' ? '#10b981' :
-                    order.status === '주문 확인' ? '#eab308' :
+                    order.status === '주문 확인' ? '#ca8a04' :
                       order.status === '주문 취소' ? '#9ca3af' :
-                        '#f59e0b',
+                        '#d97706',
                 transition: 'all 0.2s ease-in-out'
               }}
             >
@@ -277,11 +277,13 @@ export default function AdminOrderCard({
             style={{
               padding: '6px 14px',
               borderRadius: '20px',
-              border: '1.5px solid var(--border)',
-              backgroundColor: isOrderExpanded ? 'var(--accent)' : 'transparent',
+              border: isOrderExpanded ? '2px solid var(--accent)' : '2px solid var(--border)',
+              backgroundColor: isOrderExpanded ? 'var(--accent)' : 'var(--bg)',
               color: isOrderExpanded ? 'white' : 'var(--text-h)',
               fontWeight: '800',
               fontSize: '0.85rem',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
               transition: 'all 0.2s ease-in-out'
             }}
           >
@@ -361,11 +363,13 @@ export default function AdminOrderCard({
           <span style={{
             padding: '6px 14px',
             borderRadius: '20px',
-            border: `1.5px solid ${colors.border}`,
-            backgroundColor: isItemsExpanded ? colors.color : 'transparent',
+            border: isItemsExpanded ? `2px solid ${colors.color}` : `2px solid var(--border)`,
+            backgroundColor: isItemsExpanded ? colors.color : 'var(--bg)',
             color: isItemsExpanded ? 'white' : colors.color,
             fontWeight: '800',
             fontSize: '0.85rem',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
             transition: 'all 0.2s ease-in-out'
           }}>
             {isItemsExpanded ? '▲ 접기' : '▼ 상세보기'}
@@ -406,7 +410,7 @@ export default function AdminOrderCard({
                       padding: '2px 8px',
                       borderRadius: '12px',
                       backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                      color: '#f59e0b'
+                      color: '#d97706'
                     }}>미송 이월됨</span>
                   )}
                   {/* 포장완료 뱃지 추가 */}
