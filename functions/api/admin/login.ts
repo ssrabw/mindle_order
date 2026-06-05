@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 export const onRequestPost: PagesFunction<{
   SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY: string;
   ADMIN_EMAIL: string;
   ADMIN_PASSWORD: string;
 }> = async (context) => {
@@ -18,19 +18,19 @@ export const onRequestPost: PagesFunction<{
     }
 
     const supabaseUrl = env.SUPABASE_URL;
-    const supabaseServiceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAnonKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const adminEmail = env.ADMIN_EMAIL;
     const adminPassword = env.ADMIN_PASSWORD;
 
-    if (!supabaseUrl || !supabaseServiceKey || !adminEmail || !adminPassword) {
+    if (!supabaseUrl || !supabaseAnonKey || !adminEmail || !adminPassword) {
       return new Response(
         JSON.stringify({ success: false, error: '서버 환경 변수가 누락되었습니다. 설정을 확인해주세요.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 서버사이드 Supabase 클라이언트 생성
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    // 서버사이드 Supabase 클라이언트를 일반 Anon Key로 생성 (클라이언트 세션 매칭 목적)
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: false,
       },
