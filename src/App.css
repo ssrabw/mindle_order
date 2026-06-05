@@ -3803,3 +3803,27 @@ select:focus {
 .desc-edit-btn:active {
   transform: scale(0.95);
 }
+
+/* Category Edit Badge Button styling */
+.category-edit-badge-btn {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent) !important;
+  background: rgba(170, 59, 255, 0.1) !important;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  align-self: flex-start;
+  margin-bottom: 4px;
+  transition: all 0.2s ease-in-out;
+}
+
+.category-edit-badge-btn:hover {
+  background: rgba(170, 59, 255, 0.2) !important;
+  border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+.category-edit-badge-btn:active {
+  transform: translateY(0);
+}

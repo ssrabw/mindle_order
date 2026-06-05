@@ -95,6 +95,11 @@ export default function AdminPage() {
   const [isDescModalOpen, setIsDescModalOpen] = useState<boolean>(false);
   const [tempDescription, setTempDescription] = useState<string>('');
 
+  // Category Edit Inline State
+  const [editingCategoryProductId, setEditingCategoryProductId] = useState<number | null>(null);
+  const [newCategoryValue, setNewCategoryValue] = useState<string>('');
+  const [newCustomCategoryValue, setNewCustomCategoryValue] = useState<string>('');
+
   // Product ID (Generated on load/reset as a 5-digit number)
   const [productId, setProductId] = useState<number>(() => Math.floor(10000 + Math.random() * 90000));
 
@@ -520,6 +525,42 @@ export default function AdminPage() {
     }
   };
 
+  const handleSaveCategory = async (productId: number) => {
+    let finalCategoryName = newCategoryValue.trim();
+    if (finalCategoryName === '직접입력') {
+      finalCategoryName = newCustomCategoryValue.trim();
+    }
+
+    if (!finalCategoryName) {
+      alert('카테고리 이름을 기입해 주세요.');
+      return;
+    }
+
+    setIsLoadingDb(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ category: finalCategoryName })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      // 로컬 캐시 동기화
+      setDbProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, category: finalCategoryName } : p))
+      );
+
+      alert('카테고리가 성공적으로 수정되었습니다.');
+      setEditingCategoryProductId(null);
+      setNewCategoryValue('');
+      setNewCustomCategoryValue('');
+    } catch (err: any) {
+      alert(`카테고리 수정 중 오류: ${err.message}`);
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
   const handleAddModalMainImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !editingProductImages) return;
@@ -823,42 +864,53 @@ export default function AdminPage() {
 
       {/* Tab Contents */}
       <main className="admin-main-content">
-        {activeTab === 'manage' || activeTab === 'trash' ? (
-          <div className="product-manage-container">
-            {isLoadingDb ? (
-              <div className="loading-container" style={{ padding: '40px', textAlign: 'center' }}>
-                <div className="spinner" style={{ margin: '0 auto 16px auto', width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                <p>상품 목록을 불러오는 중입니다...</p>
-              </div>
-            ) : dbProducts.length === 0 ? (
-              <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center' }}>
-                <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>등록된 상품이 없습니다.</p>
-                <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>[신규 상품 등록] 탭에서 첫 상품을 추가해보세요!</p>
-              </div>
-            ) : (
-              <>
-                {/* Category and Search Filters */}
-                <div className="orders-filter-bar glassmorphism" style={{
-                  padding: '16px',
-                  borderRadius: '14px',
-                  marginBottom: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  alignItems: 'center'
-                }}>
-                  {/* Row 1: 카테고리 필터 (가운데 정렬) */}
-                  <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
-                    {['전체', ...Array.from(new Set(dbProducts.filter(p => activeTab === 'trash' ? p.is_deleted === true : !p.is_deleted).map(p => p.category).filter(Boolean)))].map((cat) => (
-                      <button
-                        key={cat}
-                        className={`filter-tag-btn ${selectedCategory === cat ? 'active' : ''}`}
-                        onClick={() => setSelectedCategory(cat)}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
+        {activeTab === 'manage' || activeTab === 'trash' ? (() => {
+          const tabProducts = dbProducts.filter((p) =>
+            activeTab === 'trash' ? p.is_deleted === true : !p.is_deleted
+          );
+
+          return (
+            <div className="product-manage-container">
+              {isLoadingDb ? (
+                <div className="loading-container" style={{ padding: '40px', textAlign: 'center' }}>
+                  <div className="spinner" style={{ margin: '0 auto 16px auto', width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                  <p>상품 목록을 불러오는 중입니다...</p>
+                </div>
+              ) : tabProducts.length === 0 ? (
+                <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center', width: '100%' }}>
+                  <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    {activeTab === 'trash' ? '삭제된 상품이 없습니다.' : '등록된 상품이 없습니다.'}
+                  </p>
+                  <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
+                    {activeTab === 'trash'
+                      ? '상품 관리 탭에서 상품을 삭제하면 여기에 보관됩니다.'
+                      : '[신규 상품 등록] 탭에서 첫 상품을 추가해보세요!'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Category and Search Filters */}
+                  <div className="orders-filter-bar glassmorphism" style={{
+                    padding: '16px',
+                    borderRadius: '14px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    alignItems: 'center'
+                  }}>
+                    {/* Row 1: 카테고리 필터 (가운데 정렬) */}
+                    <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
+                      {['전체', ...Array.from(new Set(tabProducts.map(p => p.category).filter(Boolean)))].map((cat) => (
+                        <button
+                          key={cat}
+                          className={`filter-tag-btn ${selectedCategory === cat ? 'active' : ''}`}
+                          onClick={() => setSelectedCategory(cat)}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
 
                   {/* Row 2: 상품 ID 및 상품명 검색 입력창 (가운데 정렬) */}
                   <div style={{
@@ -893,13 +945,7 @@ export default function AdminPage() {
                 </div>
 
                 {(() => {
-                  const filtered = dbProducts.filter((product) => {
-                    // 0. Soft Delete Filter
-                    if (activeTab === 'trash') {
-                      if (product.is_deleted !== true) return false;
-                    } else {
-                      if (product.is_deleted === true) return false;
-                    }
+                  const filtered = tabProducts.filter((product) => {
                     // 1. Category Filter
                     if (selectedCategory !== '전체' && product.category !== selectedCategory) {
                       return false;
@@ -933,7 +979,104 @@ export default function AdminPage() {
                           <div key={product.id} className={`manage-product-card glassmorphism ${product.is_deleted ? 'blind-product-card' : ''}`}>
                             <div className="manage-product-header">
                               <div className="manage-product-info">
-                                <span className="manage-product-category">{product.category}</span>
+                                {editingCategoryProductId === product.id ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                    <select
+                                      value={newCategoryValue}
+                                      onChange={(e) => setNewCategoryValue(e.target.value)}
+                                      style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        border: '1.5px solid var(--border)',
+                                        backgroundColor: 'var(--bg)',
+                                        color: 'var(--text-h)',
+                                        fontWeight: '700',
+                                        fontSize: '0.85rem'
+                                      }}
+                                    >
+                                      <option value="스카프">스카프</option>
+                                      <option value="모자">모자</option>
+                                      <option value="두건">두건</option>
+                                      <option value="잡화">잡화</option>
+                                      {!['스카프', '모자', '두건', '잡화'].includes(product.category) && (
+                                        <option value={product.category}>{product.category}</option>
+                                      )}
+                                      <option value="직접입력">직접 입력...</option>
+                                    </select>
+                                    
+                                    {newCategoryValue === '직접입력' && (
+                                      <input
+                                        type="text"
+                                        value={newCustomCategoryValue}
+                                        onChange={(e) => setNewCustomCategoryValue(e.target.value)}
+                                        placeholder="카테고리 직접 입력"
+                                        style={{
+                                          padding: '4px 8px',
+                                          borderRadius: '6px',
+                                          border: '1.5px solid var(--border)',
+                                          backgroundColor: 'var(--bg)',
+                                          color: 'var(--text-h)',
+                                          fontSize: '0.8rem',
+                                          fontWeight: '700',
+                                          width: '120px'
+                                        }}
+                                      />
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                                      <button
+                                        onClick={() => handleSaveCategory(product.id)}
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          border: 'none',
+                                          backgroundColor: 'var(--accent)',
+                                          color: 'white',
+                                          fontWeight: '800',
+                                          fontSize: '0.75rem',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        저장
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingCategoryProductId(null);
+                                          setNewCategoryValue('');
+                                          setNewCustomCategoryValue('');
+                                        }}
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          border: '1px solid var(--border)',
+                                          backgroundColor: 'transparent',
+                                          color: 'var(--text-muted)',
+                                          fontWeight: '800',
+                                          fontSize: '0.75rem',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        취소
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (product.is_deleted) return;
+                                      setEditingCategoryProductId(product.id);
+                                      setNewCategoryValue(product.category);
+                                      setNewCustomCategoryValue('');
+                                    }}
+                                    className="category-edit-badge-btn"
+                                    style={{
+                                      cursor: product.is_deleted ? 'default' : 'pointer'
+                                    }}
+                                  >
+                                    {product.category}
+                                  </button>
+                                )}
                                 <span className="manage-product-id">ID: {product.id}</span>
                                 <h3 className="manage-product-title">
                                   {product.is_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[삭제됨]</span>}
@@ -1028,59 +1171,60 @@ export default function AdminPage() {
                                   {product.description || '등록된 소개글이 없습니다.'}
                                 </div>
                               </div>
-                              <div className="manage-product-thumbnail-wrapper" style={{ position: 'relative' }}>
+                              <div className="manage-product-thumbnail-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
                                 <img
                                   src={product.main_images[0] || 'https://via.placeholder.com/150'}
                                   alt={product.name}
                                   className="manage-product-thumbnail"
+                                  style={{ margin: 0 }}
                                 />
                                 {!product.is_deleted && (
-                                  <>
+                                  <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center' }}>
                                     <button
                                       type="button"
                                       onClick={() => openMainImagesEditModal(product)}
                                       className="thumbnail-edit-btn"
                                       style={{
-                                        position: 'absolute',
-                                        bottom: '32px',
-                                        right: '4px',
-                                        padding: '3px 8px',
-                                        borderRadius: '10px',
+                                        flex: 1,
+                                        padding: '3px 0',
+                                        borderRadius: '6px',
                                         border: '1.5px solid var(--border)',
                                         backgroundColor: 'var(--bg)',
                                         color: 'var(--text-h)',
                                         fontWeight: '800',
                                         fontSize: '0.7rem',
                                         cursor: 'pointer',
-                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                        transition: 'all 0.2s ease-in-out'
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                                        transition: 'all 0.2s ease-in-out',
+                                        textAlign: 'center',
+                                        whiteSpace: 'nowrap'
                                       }}
                                     >
-                                      수정
+                                      이미지
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => openDescEditModal(product)}
                                       className="desc-edit-btn"
                                       style={{
-                                        position: 'absolute',
-                                        bottom: '4px',
-                                        right: '4px',
-                                        padding: '3px 8px',
-                                        borderRadius: '10px',
+                                        flex: 1,
+                                        padding: '3px 0',
+                                        borderRadius: '6px',
                                         border: '1.5px solid var(--border)',
                                         backgroundColor: 'var(--bg)',
                                         color: 'var(--text-h)',
                                         fontWeight: '800',
                                         fontSize: '0.7rem',
                                         cursor: 'pointer',
-                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                        transition: 'all 0.2s ease-in-out'
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                                        transition: 'all 0.2s ease-in-out',
+                                        textAlign: 'center',
+                                        whiteSpace: 'nowrap'
                                       }}
                                     >
-                                      소개
+                                      소개글
                                     </button>
-                                  </>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1243,7 +1387,8 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        ) : (
+        );
+      })() : (
           <form onSubmit={handleProductSubmit} className="product-register-form">
             <div className="form-sections-grid">
 
