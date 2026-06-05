@@ -752,8 +752,8 @@ ${data.shop_name}
                   {paymentMethod === 'bank' && (
                     <div className="bank-account-box">
                       <p className="bank-title">송금 계좌 정보</p>
-                      <p className="bank-number">민들레은행 123-45678-90-123</p>
-                      <p className="bank-owner">예금주: 민들레도매</p>
+                      <p className="bank-number">신한은행 110-160-915245</p>
+                      <p className="bank-owner">예금주: 주정희</p>
                       <p className="bank-notice">* 입금 시 꼭 [상호명] 이름으로 입금해 주세요.</p>
                     </div>
                   )}
