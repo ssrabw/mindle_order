@@ -197,32 +197,37 @@ export default function AdminCustomersPage() {
     e.preventDefault();
     setAuthError('');
     try {
-      const { data: isValid, error: rpcError } = await supabase
-        .rpc('verify_admin_password', { input_password: password });
+      // 1. 서버사이드 API 호출로 인증 및 세션 로그인 요청
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
 
-      if (rpcError) throw rpcError;
-
-      if (!isValid) {
-        setAuthError('❌ 비밀번호가 올바르지 않습니다.');
+      if (!response.ok) {
+        const errResult = await response.json();
+        setAuthError(`❌ ${errResult.error || '비밀번호가 올바르지 않습니다.'}`);
         return;
       }
 
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-      const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
-
-      if (adminEmail && adminPassword) {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: adminEmail,
-          password: adminPassword,
+      const result = await response.json();
+      if (result.success && result.session) {
+        // Supabase Client에 세션 복구 및 설정 (RLS 우회 세션 활성화)
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
         });
 
-        if (authError) {
-          console.error('Supabase Auth Error:', authError);
-          setAuthError(`❌ 로그인 인증 실패: ${authError.message}`);
+        if (sessionError) {
+          setAuthError(`❌ 로그인 인증 실패: ${sessionError.message}`);
           return;
         }
+      } else {
+        setAuthError('❌ 인증 처리에 실패하였습니다.');
+        return;
       }
 
+      // 2. 로그인 성공 시 세션 저장 및 인증 완료 처리
       setCookie('admin_auth', 'true', 7);
       setIsAuthenticated(true);
       setAuthError('');
