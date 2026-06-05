@@ -807,7 +807,7 @@ export default function AdminOrdersPage() {
               transition: 'all 0.2s'
             }}
           >
-            📋 {activeTab === 'order' ? '포장 미완료' : '미송'}
+            {activeTab === 'order' ? '포장 미완료' : '미송'}
           </button>
           <button
             className={`status-btn completed-filter ${statusFilter === 'completed' ? 'active' : ''}`}
@@ -822,7 +822,7 @@ export default function AdminOrdersPage() {
               transition: 'all 0.2s'
             }}
           >
-            ✅ {activeTab === 'order' ? '포장 완료' : '미송 포장완료'}
+            {activeTab === 'order' ? '포장 완료' : '미송 포장완료'}
           </button>
         </div>
 
