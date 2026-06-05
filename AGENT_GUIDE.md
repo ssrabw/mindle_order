@@ -54,15 +54,16 @@
 ---
 
 ## 6. 배포 환경 및 인프라
-- **웹 호스팅 및 배포 (Cloudflare Pages / Functions)**: 
-  - 깃허브(GitHub) 저장소와 연동되어 커밋 푸시 시 자동으로 통합 배포되며, CLI 배포 시에는 반드시 **`wrangler pages deploy dist`** 명령어를 사용해야 합니다. (단일 Workers용 배포 명령어인 `wrangler deploy`를 사용하면 루트의 `functions` 폴더를 서버리스 API로 감지하지 못해 405 에러가 발생하므로 절대 사용해선 안 됩니다.)
-- **서버리스 API 분리 (Serverless APIs)**: 
-  - 관리자 자격 증명 및 ImgBB API Key 등 보안에 민감한 정보들은 `functions/api` 내의 서버리스 함수로 분리되어 있습니다. 로컬 개발 서버 및 에뮬레이터 환경 구동 시에는 `.dev.vars`에 정의된 엣지 환경 변수들을 자동으로 읽어 사용합니다.
+- **웹 호스팅 및 배포 (Cloudflare Workers Assets)**: 
+  - 깃허브(GitHub) 저장소와 연동되어 커밋 푸시 시 자동으로 통합 배포되며, 최종 배포 도메인은 기존과 동일하게 mindle-order.ssrabw.workers.dev를 유지합니다. 
+  - 로컬 환경 및 CLI 배포 시에는 wrangler deploy --config dist/mindle_order/wrangler.json 또는 wrangler dev --config dist/mindle_order/wrangler.json을 사용하여 빌드된 최적화 자산을 배포 및 가동합니다.
+- **통합 서버리스 API 진입점 (src/worker.ts)**: 
+  - 관리자 자격 증명 검증 및 ImgBB API Key 등 보안에 민감한 백엔드 정보들은 src/worker.ts 내의 서버리스 API 핸들러에서 안전하게 처리되며, 리액트 정적 자산 서빙과 결합되어 동작합니다. 로컬 개발 환경 구동 시에는 .dev.vars에 정의된 환경 변수들을 로드하여 사용합니다.
 - **데이터베이스 및 백엔드 서비스 (Supabase)**: 
-  - Supabase PostgreSQL을 사용합니다. 관리자 로그인 시 서버리스 API(`/api/admin/login`)가 내부 환경 변수를 통해 인증을 검증하고 세션 객체를 돌려줍니다. 클라이언트는 이 세션을 `supabase.auth.setSession`으로 주입받아 RLS 우회 권한을 획득합니다. 이때 API Key 불일치 에러를 차단하기 위해 서버사이드 클라이언트 생성 시에도 `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해야 합니다.
+  - Supabase PostgreSQL을 사용합니다. 관리자 로그인 시 서버리스 API(/api/admin/login)가 내부 환경 변수를 통해 인증을 검증하고 세션 객체를 돌려줍니다. 클라이언트는 이 세션을 supabase.auth.setSession으로 주입받아 RLS 우회 권한을 획득합니다. 이때 API Key 불일치 에러를 차단하기 위해 서버사이드 클라이언트 생성 시에도 VITE_SUPABASE_PUBLISHABLE_KEY를 사용해야 합니다.
 - **이미지 저장소 및 실시간 압축 (ImgBB)**: 
-  - 이미지 영구 호스팅에 ImgBB API를 사용합니다. 클라이언트는 API Key 노출 없이 서버리스 프록시 API(`/api/image/upload`)를 호출하여 업로드합니다.
-  - 고용량 이미지 업로드로 인한 부하 및 속도 저하를 방지하기 위해, 클라이언트 단(`AdminPage.tsx`의 `uploadToImgBB` 및 `compressImage`)에서 Canvas API를 사용하여 해상도 최대 크기를 1200px(종횡비 유지)로 제한하고, JPEG 75% 화질로 실시간 압축 변환한 뒤 업로드하도록 설계되어 있습니다.
+  - 이미지 영구 호스팅에 ImgBB API를 사용합니다. 클라이언트는 API Key 노출 없이 서버리스 프록시 API(/api/image/upload)를 호출하여 업로드합니다.
+  - 고용량 이미지 업로드로 인한 부하 및 속도 저하를 방지하기 위해, 클라이언트 단(AdminPage.tsx의 uploadToImgBB 및 compressImage)에서 Canvas API를 사용하여 해상도 최대 크기를 1200px(종횡비 유지)로 제한하고, JPEG 75% 화질로 실시간 압축 변환한 뒤 업로드하도록 설계되어 있습니다.
 
 ---
 

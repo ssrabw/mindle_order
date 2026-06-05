@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler pages deploy dist",
-    "backend": "wrangler pages dev dist --compatibility-date=2026-06-03"
+    "deploy": "npm run build && wrangler deploy --config dist/mindle_order/wrangler.json",
+    "backend": "wrangler dev --config dist/mindle_order/wrangler.json --port 8788"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
