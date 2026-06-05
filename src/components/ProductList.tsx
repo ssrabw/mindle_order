@@ -15,7 +15,8 @@ const ProductList: React.FC = () => {
         const { data, error } = await supabase
           .from('products')
           .select('*, product_variants(*)')
-          .eq('is_visible', true);
+          .eq('is_visible', true)
+          .eq('is_deleted', false);
 
         if (error) throw error;
 

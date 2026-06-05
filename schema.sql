@@ -8,6 +8,7 @@ CREATE TABLE public.products (
   main_images text[] NOT NULL, -- 대표 이미지 URL 배열임
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()), -- 생성 일시임
   is_visible boolean NOT NULL DEFAULT true, -- 상품 노출 여부 토글 컬럼임
+  is_deleted boolean NOT NULL DEFAULT false, -- 상품 삭제 여부(Soft Delete) 토글 컬럼임
   CONSTRAINT products_pkey PRIMARY KEY (id)
 );
 

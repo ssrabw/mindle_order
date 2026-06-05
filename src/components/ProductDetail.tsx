@@ -24,6 +24,7 @@ const ProductDetail: React.FC = () => {
           .select('*, product_variants(*)')
           .eq('id', Number(id))
           .eq('is_visible', true)
+          .eq('is_deleted', false)
           .single();
 
         if (error) throw error;

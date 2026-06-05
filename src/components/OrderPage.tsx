@@ -28,6 +28,7 @@ const OrderPage: React.FC = () => {
   // Submit State
   const [isOrdered, setIsOrdered] = useState<boolean>(false);
   const [submittedData, setSubmittedData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Phone Lookup State
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'member' | 'new'>('idle');
@@ -250,6 +251,7 @@ ${data.shop_name}
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!phone.trim()) {
       alert('전화번호를 입력해 주세요.');
@@ -301,6 +303,7 @@ ${data.shop_name}
       displayDeliveryMethod = `근처 매장에 전달 (${shopDeliveryInfo.trim()})`;
     }
 
+    setIsSubmitting(true);
     try {
       // 1. 거래처(customers) 테이블 등록 또는 갱신
       const { error: customerError } = await supabase
@@ -397,6 +400,8 @@ ${data.shop_name}
     } catch (err: any) {
       console.error('주문 처리 중 오류:', err);
       alert(`주문 저장 중 오류가 발생했습니다: ${err.message || JSON.stringify(err)}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -782,8 +787,14 @@ ${data.shop_name}
                   </div>
                 </div>
 
-                <button type="submit" className="submit-order-btn">
-                  상품 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
+                <button type="submit" className="submit-order-btn" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    '주문 처리 중입니다...'
+                  ) : (
+                    <>
+                      상품 주문 완료하기 <br /> (총 {totalPrice.toLocaleString()}원)
+                    </>
+                  )}
                 </button>
               </>
             )}

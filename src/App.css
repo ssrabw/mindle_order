@@ -3738,3 +3738,56 @@ select:focus {
   box-shadow: 0 8px 20px var(--accent-border) !important;
   transform: scale(1.03);
 }
+
+/* Product main images editing & modal styles */
+.thumbnail-edit-btn:hover {
+  background-color: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.05);
+}
+
+.thumbnail-edit-btn:active {
+  transform: scale(0.95);
+}
+
+.modal-thumbnails-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-thumbnails-grid::-webkit-scrollbar-track {
+  background: var(--code-bg);
+  border-radius: 4px;
+}
+
+.modal-thumbnails-grid::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.modal-thumbnails-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Soft Deleted (Blinded) Product Card styling */
+.blind-product-card {
+  opacity: 0.65;
+  filter: grayscale(25%);
+  transition: all 0.3s ease-in-out;
+}
+
+.blind-product-card:hover {
+  opacity: 0.85;
+  filter: grayscale(10%);
+}
+
+.restore-product-action-btn:hover {
+  background-color: transparent !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.02);
+}
+
+.restore-product-action-btn:active {
+  transform: scale(0.98);
+}
