@@ -10,7 +10,7 @@ export default function AdminCustomerTransactionDetail({
   onImageZoom
 }: AdminCustomerTransactionDetailProps) {
   const items = order.order_items || [];
-  
+
   // Calculate items sum
   const itemsSum = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
@@ -42,7 +42,7 @@ export default function AdminCustomerTransactionDetail({
                   <span className="receipt-item-option">{item.variant_name || '기본 옵션'}</span>
                 </div>
               </div>
-              
+
               <div className="receipt-item-right">
                 <span className="receipt-item-qty">{item.quantity}개</span>
                 <span className="receipt-item-price">
@@ -65,7 +65,7 @@ export default function AdminCustomerTransactionDetail({
           <span>배송료</span>
           <span>{order.delivery_fee.toLocaleString()}원</span>
         </div>
-        
+
         <hr className="receipt-divider" />
 
         <div className="receipt-summary-row total">
