@@ -47,14 +47,13 @@ export default function MyOrdersPage() {
   const getCardStyle = (status: string) => {
     switch (status) {
       case '주문':
-      case '주문 미확인':
       case '주문 완료':
       case '미송':
         return {
           background: 'rgba(245, 158, 11, 0.03)',
           border: '1.5px solid rgba(245, 158, 11, 0.2)'
         };
-      case '주문 확인':
+      case '입금 대기중':
         return {
           background: 'rgba(234, 179, 8, 0.03)',
           border: '1.5px solid rgba(234, 179, 8, 0.2)'
@@ -157,7 +156,7 @@ export default function MyOrdersPage() {
 
       alert('주문이 취소되었습니다.');
 
-      // Refresh orders list
+      // 주문 목록 새로고침
       const parsedPhone = phone.replace(/\D/g, '');
       if (parsedPhone) {
         const { data, error: fetchError } = await supabase
@@ -269,16 +268,16 @@ export default function MyOrdersPage() {
                       borderRadius: '20px',
                       backgroundColor:
                         order.status === '포장 완료' ? 'rgba(16, 185, 129, 0.15)' :
-                          order.status === '주문 확인' ? 'rgba(234, 179, 8, 0.15)' :
+                          order.status === '입금 대기중' ? 'rgba(234, 179, 8, 0.15)' :
                             isCancelled ? 'rgba(156, 163, 175, 0.15)' :
                               'rgba(245, 158, 11, 0.15)',
                       color:
                         order.status === '포장 완료' ? '#10b981' :
-                          order.status === '주문 확인' ? '#ca8a04' :
+                          order.status === '입금 대기중' ? '#ca8a04' :
                             isCancelled ? '#9ca3af' :
                               '#d97706'
                     }}>
-                      {order.status === '주문' ? '주문 미확인' : order.status}
+                      {order.status}
                     </span>
                   </div>
                 </div>
@@ -336,7 +335,7 @@ export default function MyOrdersPage() {
                       총 <span style={{ color: 'var(--accent)' }}>{order.total_price.toLocaleString()}원</span>
                     </div>
                   </div>
-                  {!isCancelled && (order.status === '주문' || order.status === '주문 미확인' || order.status === '주문 확인') && (
+                  {!isCancelled && (order.status === '주문' || order.status === '입금 대기중') && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                       <button
                         onClick={() => handleCancelOrder(order.id)}

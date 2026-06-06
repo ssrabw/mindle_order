@@ -5,30 +5,31 @@ import type { Product } from '../types/product';
 
 const ProductList: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // 로딩 상태 관리
   const [selectedCategory, setSelectedCategory] = useState<string>('전체');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth <= 768 : false); // 모바일 화면 여부 상태
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleResize = () => {
+    if (typeof window === 'undefined') return; // 서버 사이드 렌더링 방지 (SSR guard)
+    const handleResize = () => { // 창 크기 변경 이벤트 핸들러
       setIsMobile(window.innerWidth <= 768);
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize); // 클린업 함수 (메모리 누수 방지)
   }, []);
 
   useEffect(() => {
-    async function fetchProducts() {
+    async function fetchProducts() { // 비동기 상품 조회 함수
       try {
         const { data, error } = await supabase
           .from('products')
           .select('*, product_variants(*)');
 
-        if (error) throw error;
+        if (error) throw error; // 에러 발생 시 예외 던지기
 
         if (data && data.length > 0) {
+          // Supabase 응답을 Product 타입으로 매핑
           const mapped: Product[] = data.map((p: any) => ({
             id: p.id,
             name: p.name,
@@ -50,10 +51,10 @@ const ProductList: React.FC = () => {
           }));
           setProducts(mapped);
         } else {
-          setProducts([]);
+          setProducts([]); // 데이터 없을 때 빈 배열 설정
         }
       } catch (err) {
-        console.error('Supabase DB 조회 오류:', err);
+        console.error('Supabase DB 조회 오류:', err); // 에러 로깅 및 빈 배열로 초기화
         setProducts([]);
       } finally {
         setIsLoading(false);
@@ -71,18 +72,19 @@ const ProductList: React.FC = () => {
     );
   }
 
+  // 중복 없는 카테고리 목록 생성
   const categories = ['전체', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
   const filteredProducts = products.filter((product) => {
-    // 0. Filter out completely deleted products
+    // 0. 삭제된 상품은 필터링 제외
     if (product.isRealDeleted) {
       return false;
     }
-    // 1. Category Filter
+    // 1. 카테고리 필터링
     if (selectedCategory !== '전체' && product.category !== selectedCategory) {
       return false;
     }
-    // 2. Search Query Filter (by name)
+    // 2. 검색어 필터링 (대소문자 무시)
     const query = searchQuery.trim().toLowerCase();
     if (query) {
       return product.name.toLowerCase().includes(query);
@@ -90,13 +92,16 @@ const ProductList: React.FC = () => {
     return true;
   });
 
+  // 베스트 상품 필터링
   const bestProducts = products.filter((product) => product.isBest && !product.isDeleted && product.isVisible && !product.isRealDeleted);
+  // 슬라이드 여부 결정 (모바일 3개, 데스크탑 5개)
   const shouldSlide = isMobile ? bestProducts.length >= 3 : bestProducts.length >= 5;
 
   const renderBestProductCard = (product: Product, suffix: string = '') => {
     return (
       <Link
         to={`/product/${product.id}`}
+        // 마케팅용 접미사 접합으로 고유 키 생성
         key={`${product.id}${suffix}`}
         className="product-card best-product-card"
         style={{
@@ -130,6 +135,7 @@ const ProductList: React.FC = () => {
       <h1 className="product-list-title">민들레 상품 목록</h1>
 
       {/* Best Products Layer */}
+      {/* 베스트 상품 섹션 조건부 렌더링 */}
       {bestProducts.length > 0 && (
         <div className="best-products-section glassmorphism" style={{
           padding: '24px',
@@ -141,6 +147,7 @@ const ProductList: React.FC = () => {
             <h2 style={{ fontSize: '1.6rem', fontWeight: '800', margin: '0' }}>인기 베스트 상품</h2>
           </div>
 
+          {/* 슬라이드/정적 그리드 분기 */}
           {shouldSlide ? (
             <div className="best-products-marquee-wrapper">
               <div className="best-products-marquee-track">
@@ -172,6 +179,7 @@ const ProductList: React.FC = () => {
       }}>
         {/* Row 1: 카테고리 필터 태그 */}
         <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
+          // 카테고리 태그 동적 생성
           {categories.map((cat) => (
             <button
               key={cat}
@@ -216,14 +224,18 @@ const ProductList: React.FC = () => {
       </div>
 
       <div className="product-grid">
+        {/* 빈 결과 메시지 렌더링 */}
         {filteredProducts.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '1.1rem' }}>
+            {/* 상황별 메시지 분기 */}
             {searchQuery.trim() || selectedCategory !== '전체'
               ? '검색 및 필터 결과와 일치하는 상품이 없습니다.'
               : '등록된 상품이 없습니다.'}
           </div>
         ) : (
+          // 상품 카드 동적 렌더링
           filteredProducts.map((product) => {
+            // 품절 상태 구분 로직
             const isSoldOut = product.isDeleted;
             const isTempSoldOut = !product.isVisible;
             return (
@@ -238,14 +250,14 @@ const ProductList: React.FC = () => {
                   pointerEvents: 'auto'
                 }}
               >
-                {/* Best Badge */}
+                {/* 베스트 배지 조건부 렌더링 */}
                 {product.isBest && (
                   <div className="best-badge">
                     Best
                   </div>
                 )}
 
-                {/* Diagonal line for Sold Out */}
+                {/* 품절 상품 대각선 라인 오버레이 */}
                 {isSoldOut && (
                   <div style={{
                     position: 'absolute',
@@ -259,7 +271,7 @@ const ProductList: React.FC = () => {
                   }} />
                 )}
 
-                {/* Badge for Sold Out / Temporarily Sold Out */}
+                {/* 품절/일시품절 배지 */}
                 {(isSoldOut || isTempSoldOut) && (
                   <div style={{
                     position: 'absolute',

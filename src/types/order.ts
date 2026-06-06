@@ -31,7 +31,7 @@ export interface Order {
   notification_agreed: boolean;
   delivery_fee: number;
   total_price: number;
-  status: string; // '주문 완료' | '주문 확인' | '포장 완료' | '미송' | '미송포장완료' | '주문 취소'
+  status: string; // '주문' | '입금 대기중' | '포장 완료' | '미송' | '미송포장완료' | '주문 취소'
   created_at: string;
   customers: Customer | null;
   order_items: OrderItem[];

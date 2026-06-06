@@ -25,10 +25,10 @@ export default function AdminOrderCard({
   const customer = order.customers;
   const isCancelled = order.status === '주ment 취소' || order.status === '주문 취소';
 
-  // Helper for Collapsed Status Color Mapping
+  // 접힌 상태의 상태별 색상 매핑 헬퍼
   const getStatusColor = (status: string) => {
     switch (status) {
-      case '주문 미확인':
+      case '주문':
       case '주문 완료':
       case '미송':
         return {
@@ -36,7 +36,7 @@ export default function AdminOrderCard({
           border: 'rgba(245, 158, 11, 0.4)',
           color: '#d97706'
         };
-      case '주문 확인':
+      case '입금 대기중':
         return {
           bg: 'rgba(234, 179, 8, 0.15)',
           border: 'rgba(234, 179, 8, 0.4)',
@@ -64,18 +64,17 @@ export default function AdminOrderCard({
     }
   };
 
-  // Helper for card background and border colors matching status
+  // 상태에 따른 카드 배경색과 테두리 색상 매핑 헬퍼
   const getCardStyle = (status: string) => {
     switch (status) {
       case '주문':
-      case '주문 미확인':
       case '주문 완료':
       case '미송':
         return {
           background: 'rgba(245, 158, 11, 0.03)',
           border: '1.5px solid rgba(245, 158, 11, 0.2)'
         };
-      case '주문 확인':
+      case '입금 대기중':
         return {
           background: 'rgba(234, 179, 8, 0.03)',
           border: '1.5px solid rgba(234, 179, 8, 0.2)'
@@ -99,7 +98,7 @@ export default function AdminOrderCard({
     }
   };
 
-  // Label Helpers
+  // 라벨 생성 헬퍼
   const getDeliveryLabel = (method: string, info: string | null) => {
     if (method === 'courier') return '택배';
     if (method === 'uncle') return '삼촌 대행';
@@ -114,6 +113,7 @@ export default function AdminOrderCard({
     return method;
   };
 
+  // 포장 시간 포맷팅
   const formatPackedTime = (isoString: string | null | undefined) => {
     if (!isoString) return '';
     try {
@@ -130,6 +130,7 @@ export default function AdminOrderCard({
     }
   };
 
+  // 주문 시간 포맷팅
   const formatOrderTime = (isoString: string) => {
     try {
       const date = new Date(isoString);
@@ -145,8 +146,9 @@ export default function AdminOrderCard({
     }
   };
 
+  // 체크박스 상태 변경 핸들러
   const handleCheckboxChange = async (itemId: number, isChecked: boolean) => {
-    // Optimistically update local parent state
+    // 로컬 부모 상태에 낙관적 업데이트 적용
     onCheckItemChange(itemId, isChecked);
 
     const tableName = activeTab === 'order' ? 'order_items' : 'misong_order_items';
@@ -158,9 +160,9 @@ export default function AdminOrderCard({
 
       if (error) throw error;
     } catch (err: any) {
-      console.error('Failed to update check state:', err);
+      console.error('체크 상태 업데이트 실패:', err);
       alert(`체크 상태 저장 실패: ${err.message || JSON.stringify(err)}`);
-      // Revert parent state on error
+      // 오류 발생 시 부모 상태 되돌리기
       onCheckItemChange(itemId, !isChecked);
     }
   };
@@ -179,7 +181,7 @@ export default function AdminOrderCard({
       transition: 'opacity 0.2s ease-in-out'
     }}>
 
-      {/* Order Header / Client Meta */}
+      {/* 주문 헤더 / 고객 정보 */}
       <div className="order-sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', paddingBottom: '16px', borderBottom: '1.5px solid var(--border)' }}>
         <div>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatOrderTime(order.created_at)}</span>
@@ -191,11 +193,11 @@ export default function AdminOrderCard({
           </p>
         </div>
 
-        {/* Status and Action Row */}
+        {/* 상태 및 액션 행 */}
         <div className="order-status-controller" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <select
-              value={order.status === '주문' ? '주문 미확인' : order.status}
+              value={order.status}
               onChange={(e) => onStatusChange(order.id, e.target.value)}
               style={{
                 padding: '6px 16px 6px 8px',
@@ -205,21 +207,21 @@ export default function AdminOrderCard({
                 cursor: 'pointer',
                 outline: 'none',
                 width:
-                  order.status === '미송' ? '74px' :
-                    order.status === '주문' || order.status === '주문 미확인' || order.status === '미송포장완료' ? '138px' : '112px',
+                  order.status === '미송' || order.status === '주문' ? '74px' :
+                    order.status === '입금 대기중' || order.status === '미송포장완료' ? '138px' : '112px',
                 border:
                   order.status === '포장 완료' || order.status === '미송포장완료' ? '1.5px solid rgba(16, 185, 129, 0.4)' :
-                    order.status === '주문 확인' ? '1.5px solid rgba(234, 179, 8, 0.4)' :
+                    order.status === '입금 대기중' ? '1.5px solid rgba(234, 179, 8, 0.4)' :
                       order.status === '주문 취소' ? '1.5px solid rgba(156, 163, 175, 0.4)' :
                         '1.5px solid rgba(245, 158, 11, 0.4)',
                 backgroundColor:
                   order.status === '포장 완료' || order.status === '미송포장완료' ? 'rgba(16, 185, 129, 0.15)' :
-                    order.status === '주문 확인' ? 'rgba(234, 179, 8, 0.15)' :
+                    order.status === '입금 대기중' ? 'rgba(234, 179, 8, 0.15)' :
                       order.status === '주문 취소' ? 'rgba(156, 163, 175, 0.15)' :
                         'rgba(245, 158, 11, 0.15)',
                 color:
                   order.status === '포장 완료' || order.status === '미송포장완료' ? '#10b981' :
-                    order.status === '주문 확인' ? '#ca8a04' :
+                    order.status === '입금 대기중' ? '#ca8a04' :
                       order.status === '주문 취소' ? '#9ca3af' :
                         '#d97706',
                 transition: 'all 0.2s ease-in-out'
@@ -227,8 +229,8 @@ export default function AdminOrderCard({
             >
               {activeTab === 'order' ? (
                 <>
-                  <option value="주문 미확인" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 미확인</option>
-                  <option value="주문 확인" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 확인</option>
+                  <option value="주문" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문</option>
+                  <option value="입금 대기중" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>입금 대기중</option>
                   <option value="포장 완료" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>포장 완료</option>
                   <option value="주문 취소" style={{ backgroundColor: '#1e1e1e', color: 'white' }}>주문 취소</option>
                 </>
@@ -259,7 +261,7 @@ export default function AdminOrderCard({
           transition: 'all 0.2s ease-in-out'
         }}
       >
-        {/* Row 1 */}
+        {/* 1행 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: 'var(--accent)', fontWeight: '800', fontSize: '1.05rem' }}>
             [{getDeliveryLabel(order.delivery_method, order.shop_delivery_info)}]
@@ -268,7 +270,7 @@ export default function AdminOrderCard({
             {order.total_price.toLocaleString()}원
           </span>
         </div>
-        {/* Row 2 */}
+        {/* 2행 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: 'var(--text-h)', fontWeight: '800', fontSize: '1.05rem' }}>
             [{getPaymentLabel(order.payment_method)}]
@@ -292,11 +294,11 @@ export default function AdminOrderCard({
         </div>
       </div>
 
-      {/* Order Details Grid (Toggle expandable) */}
+      {/* 주문 상세 그리드 (토글 가능) */}
       {isOrderExpanded && (
         <div className="order-sheet-details-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px', marginTop: '16px', paddingBottom: '16px', borderBottom: '1.5px dashed var(--border)', animation: 'fadeIn 0.2s ease-in-out' }}>
 
-          {/* Shipping and Payment Info */}
+          {/* 배송 및 결제 정보 */}
           <div className="info-block">
             <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', fontWeight: '800', color: 'var(--text-h)' }}>🚚 배송 & 결제 정보</h4>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.95rem' }}>
@@ -319,7 +321,7 @@ export default function AdminOrderCard({
             </ul>
           </div>
 
-          {/* Price Calculation details */}
+          {/* 가격 계산 상세 */}
           <div className="price-block" style={{ backgroundColor: 'rgba(255,255,255,0.01)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', fontWeight: '800', color: 'var(--text-h)' }}>💳 결제금액 요약</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.95rem' }}>
@@ -340,7 +342,7 @@ export default function AdminOrderCard({
         </div>
       )}
 
-      {/* Order Items Table (Image + Name + Options) - Collapsible */}
+      {/* 주문 상품 목록 (이미지 + 이름 + 옵션) - 토글 가능 */}
       <div className="order-items-block" style={{ marginTop: '16px' }}>
         <div
           onClick={() => setIsItemsExpanded(!isItemsExpanded)}

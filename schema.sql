@@ -46,7 +46,7 @@ CREATE TABLE public.orders (
   notification_agreed boolean NOT NULL DEFAULT false, -- 알림 동의 여부임
   delivery_fee bigint NOT NULL DEFAULT 0, -- 배송비임
   total_price bigint NOT NULL, -- 총 주문 금액임
-  status text NOT NULL DEFAULT '주문 완료'::text, -- 주문 상태 정보임
+  status text NOT NULL DEFAULT '주문'::text, -- 주문 상태 정보임
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()), -- 생성 일시임
   CONSTRAINT orders_pkey PRIMARY KEY (id),
   CONSTRAINT orders_customer_phone_fkey FOREIGN KEY (customer_phone) REFERENCES public.customers(phone)

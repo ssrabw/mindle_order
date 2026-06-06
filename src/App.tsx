@@ -191,8 +191,14 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
 function MainLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isCartOpen = useCartStore((state) => state.isCartOpen);
   const setIsCartOpen = useCartStore((state) => state.setIsCartOpen);
+
+  // 페이지 이동 시 화면 최상단으로 스크롤 이동
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // --- 알림 및 서비스 워커 유틸리티 ---
   // 서비스 워커 등록

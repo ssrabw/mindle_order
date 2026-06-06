@@ -4,7 +4,7 @@ import { supabase } from '../api/supabase';
 import type { Customer, Order } from '../types/order';
 import AdminCustomerTransactionDetail from './AdminCustomerTransactionDetail';
 
-// Cookie Helpers
+// 쿠키 헬퍼 함수
 const setCookie = (name: string, value: string, days: number) => {
   const date = new Date();
   date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -30,20 +30,20 @@ const deleteCookie = (name: string) => {
 export default function AdminCustomersPage() {
 
 
-  // Authentication State
+  // 인증 상태
   const [password, setPassword] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
 
-  // Customers & Orders Summary State
+  // 거래처 및 주문 요약 상태
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
   const [misongPhones, setMisongPhones] = useState<Set<string>>(new Set());
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Selected Customer & Transaction History State
+  // 선택된 거래처 및 거래 내역 상태
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [transactions, setTransactions] = useState<Order[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState<boolean>(false);
@@ -56,12 +56,12 @@ export default function AdminCustomersPage() {
     setSelectedCustomer(null);
   };
 
-  // Zoomed Image Lightbox State
+  // 확대 이미지 라이트박스 상태
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
 
 
-  // 1. Session verification on mount
+  // 1. 마운트 시 세션 확인
   useEffect(() => {
     const verifyAuth = async () => {
       try {
@@ -74,14 +74,14 @@ export default function AdminCustomersPage() {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          console.log('No active Supabase Auth session. Clearing cookie.');
+          console.log('활성 세션이 없습니다. 쿠키를 삭제합니다.');
           deleteCookie('admin_auth');
           setIsAuthenticated(false);
         } else {
           setIsAuthenticated(true);
         }
       } catch (err) {
-        console.error('Session verify error:', err);
+        console.error('세션 확인 오류:', err);
         setIsAuthenticated(false);
       } finally {
         setIsVerifyingSession(false);
@@ -91,7 +91,7 @@ export default function AdminCustomersPage() {
     verifyAuth();
   }, []);
 
-  // 2. Fetch customers summary when authenticated
+  // 2. 인증 시 거래처 요약 가져오기
   useEffect(() => {
     if (isAuthenticated) {
       fetchCustomersSummary();
@@ -101,7 +101,7 @@ export default function AdminCustomersPage() {
   const fetchCustomersSummary = async () => {
     setIsLoadingSummary(true);
     try {
-      // Fetch all customers
+      // 모든 거래처 가져오기
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('*')
@@ -109,14 +109,14 @@ export default function AdminCustomersPage() {
 
       if (customersError) throw customersError;
 
-      // Fetch orders brief to compute active order counts per phone number
+      // 전화번호별 활성 주문 수 계산 위해 주문 요약 가져오기
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('customer_phone, status');
 
       if (ordersError) throw ordersError;
 
-      // Compute active order counts (exclude cancelled orders)
+      // 활성 주문 수 계산 (취소된 주문 제외)
       const counts: Record<string, number> = {};
       ordersData.forEach((order) => {
         if (order.status !== '주문 취소') {
@@ -124,7 +124,7 @@ export default function AdminCustomersPage() {
         }
       });
 
-      // Fetch pending backorders from misong_orders
+      // misong_orders에서 미송 상태의 백오더 가져오기
       const { data: misongData, error: misongError } = await supabase
         .from('misong_orders')
         .select('customer_phone')
@@ -141,14 +141,14 @@ export default function AdminCustomersPage() {
       setOrderCounts(counts);
       setMisongPhones(misongs);
     } catch (err: any) {
-      console.error('Error fetching customers summary:', err);
+      console.error('거래처 요약 가져오기 오류:', err);
       alert(`거래처 요약을 불러오는 중 오류 발생: ${err.message}`);
     } finally {
       setIsLoadingSummary(false);
     }
   };
 
-  // 3. Fetch transaction history when a customer is selected
+  // 3. 거래처 선택 시 거래 내역 가져오기
   const selectCustomer = async (customer: Customer) => {
     setSelectedCustomer(customer);
     setTransactions([]);
@@ -158,7 +158,7 @@ export default function AdminCustomersPage() {
     setIsModalOpen(true);
 
     try {
-      // Fetch normal orders
+      // 일반 주문 가져오기
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*, customers(*), order_items(*)')
@@ -166,7 +166,7 @@ export default function AdminCustomersPage() {
 
       if (ordersError) throw ordersError;
 
-      // Fetch misong orders
+      // 미송 주문 가져오기
       const { data: misongData, error: misongError } = await supabase
         .from('misong_orders')
         .select('*, customers(*), order_items:misong_order_items(*)')
@@ -174,25 +174,25 @@ export default function AdminCustomersPage() {
 
       if (misongError) throw misongError;
 
-      // Type castings and formatting
+      // 타입 캐스팅 및 포맷팅
       const normalOrders: Order[] = (ordersData as any) || [];
       const misongOrders: Order[] = (misongData as any) || [];
 
-      // Combine both lists and sort by created_at desc
+      // 두 목록 합치고 created_at 기준 내림차순 정렬
       const combined = [...normalOrders, ...misongOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
       setTransactions(combined);
     } catch (err: any) {
-      console.error('Error fetching transactions:', err);
+      console.error('거래 내역 가져오기 오류:', err);
       alert(`거래 내역을 불러오는 중 오류 발생: ${err.message}`);
     } finally {
       setIsLoadingTransactions(false);
     }
   };
 
-  // Auth Handler
+  // 인증 핸들러
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -212,7 +212,7 @@ export default function AdminCustomersPage() {
 
       const result = await response.json();
       if (result.success && result.session) {
-        // Supabase Client에 세션 복구 및 설정 (RLS 우회 세션 활성화)
+        // Supabase 클라이언트에 세션 복구 및 설정 (RLS 우회 세션 활성화)
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
@@ -232,13 +232,13 @@ export default function AdminCustomersPage() {
       setIsAuthenticated(true);
       setAuthError('');
     } catch (err: any) {
-      console.error('Auth handler error:', err);
+      console.error('인증 핸들러 오류:', err);
       setAuthError(`❌ 인증 처리 중 오류 발생: ${err.message || JSON.stringify(err)}`);
     }
   };
 
 
-  // Filter customers based on search query
+  // 검색어에 따라 거래처 필터링
   const getFilteredCustomers = () => {
     const trimmed = searchQuery.trim();
     const cleanedQuery = trimmed.replace(/\D/g, '');
@@ -252,7 +252,7 @@ export default function AdminCustomersPage() {
     });
   };
 
-  // Map payment method to human-readable strings as requested
+  // 결제 방법을 읽을 수 있는 문자열로 매핑
   const getPaymentMethodLabel = (method: string) => {
     if (method === 'bank') return '온라인';
     if (method === 'uncle') return '삼촌대납';
@@ -260,7 +260,7 @@ export default function AdminCustomersPage() {
     return method;
   };
 
-  // Format transaction Date header
+  // 거래 날짜 헤더 포맷팅
   const formatTransactionDate = (isoString: string) => {
     try {
       const d = new Date(isoString);
@@ -327,7 +327,7 @@ export default function AdminCustomersPage() {
 
   return (
     <div className="admin-dashboard-container">
-      {/* Admin Header */}
+      {/* 관리자 헤더 */}
       <header className="admin-header glassmorphism">
         <div className="admin-header-left">
           <span className="admin-title-badge">CUSTOMERS</span>
@@ -335,7 +335,7 @@ export default function AdminCustomersPage() {
         </div>
       </header>
 
-      {/* Customers List Container */}
+      {/* 거래처 목록 컨테이너 */}
       <div className="customers-page-layout-single" style={{ marginTop: '24px' }}>
         <section className="customers-list-card glassmorphism" style={{ padding: '24px', borderRadius: '16px', border: '1.5px solid var(--border)' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '16px', color: 'var(--text-h)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -343,7 +343,7 @@ export default function AdminCustomersPage() {
             {isLoadingSummary && <span className="spinner-small" style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>}
           </h2>
 
-          {/* Search bar */}
+          {/* 검색 바 */}
           <div className="search-box" style={{ marginBottom: '20px' }}>
             <input
               type="text"
@@ -365,7 +365,7 @@ export default function AdminCustomersPage() {
             />
           </div>
 
-          {/* List items - no maxHeight, no overflowY to avoid internal scrolling */}
+          {/* 목록 항목 - 내부 스크롤을 피하기 위해 maxHeight 및 overflowY 없음 */}
           <div className="customers-scroll-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredCustomers.length === 0 ? (
               <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0', fontSize: '0.95rem' }}>검색 결과가 없습니다.</p>
@@ -391,7 +391,7 @@ export default function AdminCustomersPage() {
                       boxShadow: 'var(--shadow)'
                     }}
                   >
-                    {/* Header: Shop Name & Misong Badge */}
+                    {/* 헤더: 상호명 및 미송 뱃지 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                       <h3 style={{ fontSize: '1.15rem', fontWeight: '800', margin: 0, color: 'var(--text-h)' }}>
                         {customer.shop_name}
@@ -409,7 +409,7 @@ export default function AdminCustomersPage() {
                       )}
                     </div>
 
-                    {/* Metadata */}
+                    {/* 메타데이터 */}
                     <div style={{ fontSize: '0.88rem', color: 'var(--text)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <span style={{ fontWeight: '700' }}>📞 {customer.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: '1.4' }}>
@@ -427,7 +427,7 @@ export default function AdminCustomersPage() {
         </section>
       </div>
 
-      {/* Transaction History Popup Modal */}
+      {/* 거래 내역 팝업 모달 */}
       {isModalOpen && selectedCustomer && (
         <div className="customer-modal-overlay" onClick={closeModal}>
           <div className="customer-modal-container" onClick={(e) => e.stopPropagation()}>
@@ -464,7 +464,7 @@ export default function AdminCustomersPage() {
                     </span>
                   </div>
 
-                  {/* Transaction List (20 per page) */}
+                  {/* 거래 목록 (페이지당 20개) */}
                   <div className="transaction-list-accordion" style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
                     {paginatedTransactions.map((order) => {
                       const isExpanded = expandedTransactionId === order.id;
@@ -474,7 +474,7 @@ export default function AdminCustomersPage() {
 
                       return (
                         <div key={order.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {/* List Item row */}
+                          {/* 목록 항목 행 */}
                           <div
                             onClick={() => {
                               setExpandedTransactionId(isExpanded ? null : order.id);
@@ -493,12 +493,12 @@ export default function AdminCustomersPage() {
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                              {/* Date & Time */}
+                              {/* 날짜 및 시간 */}
                               <span style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>
                                 {dateStr}
                               </span>
 
-                              {/* Payment Method */}
+                              {/* 결제 방법 */}
                               <span style={{
                                 fontSize: '0.8rem',
                                 fontWeight: '800',
@@ -511,7 +511,7 @@ export default function AdminCustomersPage() {
                                 {paymentLabel}
                               </span>
 
-                              {/* Misong Type Badge */}
+                              {/* 미송 유형 뱃지 */}
                               {isMisongOrder && (
                                 <span style={{
                                   fontSize: '0.75rem',
@@ -527,7 +527,7 @@ export default function AdminCustomersPage() {
                               )}
                             </div>
 
-                            {/* Total Price and Toggle arrow */}
+                            {/* 총 가격 및 토글 화살표 */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginLeft: '16px' }}>
                               <span style={{ fontSize: '1.05rem', fontWeight: '900', color: 'var(--text-h)', whiteSpace: 'nowrap' }}>
                                 {order.total_price.toLocaleString()}원
@@ -538,7 +538,7 @@ export default function AdminCustomersPage() {
                             </div>
                           </div>
 
-                          {/* Expanded Order details (AdminCustomerTransactionDetail) */}
+                          {/* 확장된 주문 상세 (AdminCustomerTransactionDetail) */}
                           {isExpanded && (
                             <div style={{ padding: '4px', animation: 'fadeIn 0.2s ease-in-out' }}>
                               <AdminCustomerTransactionDetail
@@ -552,7 +552,7 @@ export default function AdminCustomersPage() {
                     })}
                   </div>
 
-                  {/* Transaction Pagination */}
+                  {/* 거래 페이지네이션 */}
                   {totalPages > 1 && (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '12px' }}>
                       <button
@@ -604,7 +604,7 @@ export default function AdminCustomersPage() {
         </div>
       )}
 
-      {/* Lightbox Zoom Popup */}
+      {/* 라이트박스 확대 팝업 */}
       {zoomedImage && (
         <div className="zoom-lightbox" onClick={() => setZoomedImage(null)}>
           <div className="lightbox-content">

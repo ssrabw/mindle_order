@@ -5,7 +5,7 @@ import type { Order } from '../types/order';
 import AdminOrderCard from './AdminOrderCard';
 
 
-// Cookie Helpers
+// 쿠틸 헬퍼 함수
 const setCookie = (name: string, value: string, days: number) => {
   const date = new Date();
   date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -30,38 +30,38 @@ const deleteCookie = (name: string) => {
 
 export default function AdminOrdersPage() {
 
-  // Authentication State
+  // 인증 상태
   const [password, setPassword] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
 
-  // Filter State: 'today' | '3' | '30' | 'all'
+  // 필터 상태: 'today' | '3' | '30' | 'all'
   const [filterDays, setFilterDays] = useState<string>('today');
-  // Active Tab State: 'order' (일반) | 'misong' (미송)
+  // 활성 탭 상태: 'order' (일반) | 'misong' (미송)
   const [activeTab, setActiveTab] = useState<'order' | 'misong'>('order');
-  // Status Filter State: 'active' (주문 대기) | 'completed' (포장 완료)
+  // 상태 필터 상태: 'active' (주문 대기) | 'completed' (포장 완료)
   const [statusFilter, setStatusFilter] = useState<'active' | 'completed'>('active');
 
-  // Collapsible Date Filter Toggle
+  // 토글식 날짜 필터 표시
   const [showDateFilter, setShowDateFilter] = useState<boolean>(false);
-  // Pagination State
+  // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Checked Items State for packing verification (key is item.id)
+  // 포장 확인용 체크된 항목 상태 (key는 item.id)
   const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
 
-  // Orders State
+  // 주문 목록 상태
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Lightbox State
+  // 라이트박스 상태
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
 
 
-  // Fetch Orders from Supabase
+  // Supabase에서 주문 목록 가져오기
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
@@ -86,7 +86,7 @@ export default function AdminOrdersPage() {
 
       if (filterDays !== 'all') {
         if (filterDays === 'today') {
-          // 오늘 새벽 5시 기준 리셋 필터링
+          // 오늘 새벽 5시 기준 필터링
           const now = new Date();
           const kstOffset = 9 * 60 * 60 * 1000;
           const kstTime = new Date(now.getTime() + kstOffset);
@@ -117,7 +117,7 @@ export default function AdminOrdersPage() {
       const fetchedOrders = (data as any) || [];
       setOrders(fetchedOrders);
 
-      // Populate checkedItems from loaded order items
+      // 로드된 주문 항목에서 checkedItems 초기화
       const initialChecked: Record<number, boolean> = {};
       fetchedOrders.forEach((order: any) => {
         const items = order.order_items || [];
@@ -127,14 +127,14 @@ export default function AdminOrdersPage() {
       });
       setCheckedItems(initialChecked);
     } catch (err: any) {
-      console.error('Error fetching orders:', err);
+      console.error('주문 목록 가져오기 실패:', err);
       alert(`주문 목록을 불러오는 중 오류 발생: ${err.message || JSON.stringify(err)}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 1. Session verification on mount
+  // 1. 마운트 시 세션 확인
   useEffect(() => {
     const verifyAuth = async () => {
       try {
@@ -147,14 +147,14 @@ export default function AdminOrdersPage() {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          console.log('No active Supabase Auth session. Clearing cookie.');
+          console.log('활성 세션이 없습니다. 쿠키 삭제.');
           deleteCookie('admin_auth');
           setIsAuthenticated(false);
         } else {
           setIsAuthenticated(true);
         }
       } catch (err) {
-        console.error('Session verify error:', err);
+        console.error('세션 확인 중 오류:', err);
         setIsAuthenticated(false);
       } finally {
         setIsVerifyingSession(false);
@@ -164,26 +164,26 @@ export default function AdminOrdersPage() {
     verifyAuth();
   }, []);
 
-  // 2. Fetch orders when authenticated
+  // 2. 인증된 경우 주문 목록 가져오기
   useEffect(() => {
     if (isAuthenticated) {
       fetchOrders();
     }
   }, [isAuthenticated, filterDays, activeTab]);
 
-  // 3. Reset pagination page when filters change
+  // 3. 필터 변경 시 페이지네이션 페이지 초기화
   useEffect(() => {
     setCurrentPage(1);
   }, [filterDays, activeTab, searchQuery, statusFilter]);
 
-  // 4. Page change scroll-to-top handler
+  // 4. 페이지 변경 시 스크롤 최상단으로
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [currentPage]);
 
-  // Auth Handler
+  // 인증 핸들러
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -234,12 +234,12 @@ export default function AdminOrdersPage() {
         }
       }
     } catch (err: any) {
-      console.error('Auth handler error:', err);
+      console.error('인증 처리기 오류:', err);
       setAuthError(`❌ 인증 처리 중 오류 발생: ${err.message || JSON.stringify(err)}`);
     }
   };
 
-  // Update Order Status
+  // 주문 상태 변경
   const handleStatusChange = async (orderId: number, newStatus: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
@@ -267,7 +267,7 @@ export default function AdminOrdersPage() {
 
         if (allPacked) {
           if (!window.confirm("포장을 완료하시겠어요? 거래처에 자동으로 알림이가요")) {
-            // 복구 유도
+            // 상태 복원
             setOrders(prev => [...prev]);
             return;
           }
@@ -404,7 +404,7 @@ export default function AdminOrdersPage() {
       } else {
         if (newStatus === '주문 취소') {
           if (!window.confirm("정말 이 주문을 취소하시겠습니까? 취소된 주문은 복구할 수 없습니다.")) {
-            // Revert state change
+            // 상태 변경 취소
             setOrders(prev => [...prev]);
             return;
           }
@@ -418,7 +418,7 @@ export default function AdminOrdersPage() {
 
           if (error) throw error;
 
-          // 만약 기존 상태가 '포장 완료'였고 주문 확인 등으로 롤백하는 경우
+          // 만약 기존 상태가 '포장 완료'였고 입금 대기중 등으로 롤백하는 경우
           if (order.status === '포장 완료') {
             // order_items 진행상태 미포장으로 초기화, 체크박스 초기화, 완료 시간 초기화
             const { error: itemsError } = await supabase
@@ -563,7 +563,7 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Date Formatting Helper: returns "26년 06월 03일"
+  // 날짜 포맷팅 헬퍼: "26년 06월 03일" 형식 반환
   const formatDateHeader = (dateString: string): string => {
     const d = new Date(dateString);
     const yy = String(d.getFullYear()).slice(-2);
@@ -572,7 +572,7 @@ export default function AdminOrdersPage() {
     return `${yy}년 ${mm}월 ${dd}일`;
   };
 
-  // Get filtered orders based on search query
+  // 검색어 기반으로 필터링된 주문 목록 가져오기
   const getFilteredOrders = () => {
     const trimmed = searchQuery.trim();
     const cleanedQuery = trimmed.replace(/\D/g, '');
@@ -583,9 +583,8 @@ export default function AdminOrdersPage() {
       if (statusFilter === 'active') {
         if (activeTab === 'order') {
           if (
-            order.status !== '주문 미확인' &&
-            order.status !== '주문 확인' &&
             order.status !== '주문' &&
+            order.status !== '입금 대기중' &&
             order.status !== '주문 취소'
           ) {
             return false;
@@ -621,7 +620,7 @@ export default function AdminOrdersPage() {
     });
   };
 
-  // Group orders by formatted date header
+  // 포맷팅된 날짜 헤더별로 주문 목록 그룹화
   const getGroupedOrders = (paginatedOrders: Order[]) => {
     const groups: Record<string, Order[]> = {};
     paginatedOrders.forEach(order => {
@@ -643,7 +642,7 @@ export default function AdminOrdersPage() {
     );
   }
 
-  // Login view if unauthenticated
+  // 미인증 상태의 로그인 화면
   if (!isAuthenticated) {
     return (
       <div className="admin-auth-container">
@@ -685,7 +684,7 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="admin-dashboard-container">
-      {/* Admin Header */}
+      {/* 관리자 헤더 */}
       <header className="admin-header glassmorphism">
         <div className="admin-header-left">
           <span className="admin-title-badge">ORDERS</span>
@@ -725,7 +724,7 @@ export default function AdminOrdersPage() {
         </button>
       </div>
 
-      {/* Date Filter Choices */}
+      {/* 날짜 필터 선택 */}
       <div className="orders-filter-bar glassmorphism" style={{
         padding: '16px',
         borderRadius: '14px',
@@ -735,7 +734,7 @@ export default function AdminOrdersPage() {
         gap: '12px',
         alignItems: 'center'
       }}>
-        {/* Row 1: 상호 및 전화번호 검색 입력창 & 필터 토글 버튼 */}
+        {/* 1행: 상호 및 전화번호 검색 입력창 & 필터 토글 버튼 */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -783,7 +782,7 @@ export default function AdminOrdersPage() {
           </button>
         </div>
 
-        {/* Row 2: 상태 필터 (주문 / 포장 완료) 상시 노출 */}
+        {/* 2행: 상태 필터 (주문 / 포장 완료) 상시 노출 */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -829,7 +828,7 @@ export default function AdminOrdersPage() {
         {/* 접혀있는 기간 필터 */}
         {showDateFilter && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', alignItems: 'center', marginTop: '4px', paddingTop: '12px', borderTop: '1px dashed var(--border)' }}>
-            {/* Row 1: 기간 필터 버튼 그룹 (최근 3일, 최근 7일, 최근 30일 - 가운데 정렬) */}
+            {/* 1행: 기간 필터 버튼 그룹 (최근 3일, 최근 7일, 최근 30일 - 가운데 정렬) */}
             <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
               <button
                 className={`filter-tag-btn ${filterDays === 'today' ? 'active' : ''}`}
@@ -851,7 +850,7 @@ export default function AdminOrdersPage() {
               </button>
             </div>
 
-            {/* Row 2: 전체 보기 버튼 */}
+            {/* 2행: 전체 보기 버튼 */}
             <button
               className={`filter-tag-btn ${filterDays === 'all' ? 'active' : ''}`}
               onClick={() => setFilterDays('all')}
@@ -867,7 +866,7 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      {/* Orders List Container */}
+      {/* 주문 목록 컨테이너 */}
       <main className="admin-main-content">
         {isLoading ? (
           <div className="loading-container" style={{ padding: '80px', textAlign: 'center' }}>
@@ -888,7 +887,7 @@ export default function AdminOrdersPage() {
           <div className="grouped-orders-container" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             {Object.keys(groupedOrders).map(dateHeader => (
               <div key={dateHeader} className="date-order-group">
-                {/* Date Header Tag */}
+                {/* 날짜 헤더 태그 */}
                 <div className="date-group-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: '800', margin: 0, color: 'var(--text-h)' }}>{dateHeader}</h2>
                   <span className="order-count-badge" style={{ backgroundColor: 'var(--accent)', color: 'white', fontSize: '0.85rem', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }}>
@@ -896,7 +895,7 @@ export default function AdminOrdersPage() {
                   </span>
                 </div>
 
-                {/* Orders under this Date */}
+                {/* 해당 날짜의 주문 목록 */}
                 <div className="orders-cards-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   {groupedOrders[dateHeader].map(order => (
                     <AdminOrderCard
@@ -917,7 +916,7 @@ export default function AdminOrdersPage() {
           </div>
         )}
 
-        {/* Pagination Controls */}
+        {/* 페이지네이션 컨트롤 */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px', marginBottom: '16px' }}>
             <button
@@ -963,7 +962,7 @@ export default function AdminOrdersPage() {
         )}
       </main>
 
-      {/* Lightbox Zoom Popup */}
+      {/* 라이트박스 확대 팝업 */}
       {zoomedImage && (
         <div className="zoom-lightbox" onClick={() => setZoomedImage(null)}>
           <div className="lightbox-content">

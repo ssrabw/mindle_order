@@ -13,7 +13,7 @@ const OrderPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, clearCart, setIsCartOpen } = useCartStore();
 
-  // Form States
+  // 폼 상태
   const [shopName, setShopName] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [postcode, setPostcode] = useState<string>('');
@@ -25,12 +25,12 @@ const OrderPage: React.FC = () => {
   const [notificationAgreed, setNotificationAgreed] = useState<boolean>(false);
   const [notificationStatus, setNotificationStatus] = useState<string>('');
 
-  // Submit State
+  // 제출 상태
   const [isOrdered, setIsOrdered] = useState<boolean>(false);
   const [submittedData, setSubmittedData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Phone Lookup State
+  // 전화번호 조회 상태
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'member' | 'new'>('idle');
   const [hasExistingOrderToday, setHasExistingOrderToday] = useState<boolean>(false);
 
@@ -42,29 +42,29 @@ const OrderPage: React.FC = () => {
     }
 
     try {
-      // Get current KST time (UTC+9)
+      // 현재 KST 시간 (UTC+9) 가져오기
       const now = new Date();
       const kstOffset = 9 * 60 * 60 * 1000;
       const kstTime = new Date(now.getTime() + kstOffset);
       const yyyy = kstTime.getUTCFullYear();
       const month = kstTime.getUTCMonth();
       const date = kstTime.getUTCDate();
-      const hour = kstTime.getUTCHours(); // KST hour (0 ~ 23)
+      const hour = kstTime.getUTCHours(); // KST 시간 (0 ~ 23)
 
       let cycleStartKST: Date;
       let cycleEndKST: Date;
 
       if (hour < 4) {
-        // Case 1: Before 4 AM KST. Cycle starts yesterday 4 AM KST and ends today 4 AM KST.
+        // 경우 1: KST 오전 4시 전. 사이클은 어제 KST 오전 4시에 시작하여 오늘 KST 오전 4시에 종료.
         cycleStartKST = new Date(Date.UTC(yyyy, month, date - 1, 4, 0, 0));
         cycleEndKST = new Date(Date.UTC(yyyy, month, date, 3, 59, 59, 999));
       } else {
-        // Case 2: At or after 4 AM KST. Cycle starts today 4 AM KST and ends tomorrow 4 AM KST.
+        // 경우 2: KST 오전 4시 이후. 사이클은 오늘 KST 오전 4시에 시작하여 내일 KST 오전 4시에 종료.
         cycleStartKST = new Date(Date.UTC(yyyy, month, date, 4, 0, 0));
         cycleEndKST = new Date(Date.UTC(yyyy, month, date + 1, 3, 59, 59, 999));
       }
 
-      // Convert back to UTC (subtract 9 hours)
+      // UTC로 다시 변환 (9시간 빼기)
       const cycleStartUTC = new Date(cycleStartKST.getTime() - kstOffset);
       const cycleEndUTC = new Date(cycleEndKST.getTime() - kstOffset);
 
@@ -139,7 +139,7 @@ ${data.shop_name}
     }
   };
 
-  // Scroll to top on mount or when order succeeds
+  // 마운트 시 또는 주문 성공 시 맨 위로 스크롤
   useEffect(() => {
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
@@ -153,7 +153,7 @@ ${data.shop_name}
     return () => clearTimeout(timer);
   }, [isOrdered]);
 
-  // Dynamically load Daum Postcode script
+  // Daum 우편번호 스크립트 동적 로드
   useEffect(() => {
     const scriptId = 'daum-postcode-script';
     let script = document.getElementById(scriptId) as HTMLScriptElement;
@@ -200,7 +200,7 @@ ${data.shop_name}
     }
   };
 
-  // Group items by product for display
+  // 상품별로 그룹화하여 표시
   const groupedCart: { [key: number]: { product: typeof cart[0]['product']; items: typeof cart } } = {};
   cart.forEach((item) => {
     if (!groupedCart[item.product.id]) {
@@ -218,7 +218,7 @@ ${data.shop_name}
   const totalPrice = basePrice + deliveryFee;
   const isFieldsDisabled = !(lookupStatus === 'member' || lookupStatus === 'new');
 
-  // Handle browser push notification permission request
+  // 브라우저 푸시 알림 권한 요청 처리
   const handleNotificationChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setNotificationAgreed(checked);
@@ -258,7 +258,7 @@ ${data.shop_name}
       return;
     }
 
-    // Parse phone number: strip non-digits to form the DB Primary Key (e.g. 01093863222)
+    // 전화번호 파싱: 비숫자 문자 제거하여 DB 기본 키 생성 (예: 01093863222)
     const parsedPhone = phone.replace(/\D/g, '');
     if (parsedPhone.length < 9) {
       alert('올바른 전화번호 형식을 입력해 주세요 (최소 9자리 숫자).');
@@ -284,7 +284,7 @@ ${data.shop_name}
       return;
     }
 
-    // Determine payment and delivery names
+    // 결제 및 배송 방식 이름 결정
     let displayPaymentMethod = '';
     if (paymentMethod === 'bank') {
       displayPaymentMethod = '계좌이체';
@@ -329,7 +329,7 @@ ${data.shop_name}
           notification_agreed: notificationAgreed,
           delivery_fee: deliveryFee,
           total_price: totalPrice,
-          status: '주문 미확인'
+          status: '주문'
         })
         .select();
 
@@ -357,7 +357,7 @@ ${data.shop_name}
         .insert(orderItemsToInsert);
 
       if (itemsError) {
-        // order_items 입력 실패 시 master order 롤백
+        // order_items 입력 실패 시 주문 본데이터 롤백
         await supabase.from('orders').delete().eq('id', newOrderId);
         throw itemsError;
       }
@@ -368,11 +368,11 @@ ${data.shop_name}
       localStorage.setItem('customer_phone', parsedPhone);
       window.dispatchEvent(new Event('storage')); // 즉각적인 알림 구독 동기화 트리거
 
-      // Save data for success display
+      // 성공 화면 표시용 데이터 저장
       const orderDetails = {
         shopName: shopName.trim(),
         phoneOriginal: phone.trim(),
-        phoneParsedPK: parsedPhone, // Primary Key for DB
+        phoneParsedPK: parsedPhone, // DB 기본 키
         postcode: postcode.trim(),
         address: address.trim(),
         detailAddress: detailAddress.trim(),
@@ -393,7 +393,7 @@ ${data.shop_name}
       setSubmittedData(orderDetails);
       setIsOrdered(true);
 
-      // Clear global store cart items
+      // 전역 저장소 장바구니 비우기
       clearCart();
       setIsCartOpen(false);
 
@@ -405,7 +405,7 @@ ${data.shop_name}
     }
   };
 
-  // If order complete screen
+  // 주문 완료 화면
   if (isOrdered && submittedData) {
     return (
       <div className="order-success-container">
@@ -488,7 +488,7 @@ ${data.shop_name}
     );
   }
 
-  // If cart is empty and not ordered
+  // 장바구니가 비어 있고 주문 완료되지 않음
   if (cart.length === 0) {
     return (
       <div className="order-page-empty">

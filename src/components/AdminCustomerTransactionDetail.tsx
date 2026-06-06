@@ -11,7 +11,7 @@ export default function AdminCustomerTransactionDetail({
 }: AdminCustomerTransactionDetailProps) {
   const items = order.order_items || [];
 
-  // Calculate items sum
+  // 상품 합계 계산
   const itemsSum = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
   return (

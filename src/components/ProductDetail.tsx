@@ -17,6 +17,7 @@ const ProductDetail: React.FC = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
+    // 상품 상세 정보를 가져오는 함수
     async function fetchProductDetail() {
       try {
         const { data, error } = await supabase
@@ -27,7 +28,9 @@ const ProductDetail: React.FC = () => {
 
         if (error) throw error;
 
+        // 삭제되지 않은 상품만 처리
         if (data && data.is_real_deleted !== true) {
+          // 데이터 매핑
           const mapped: Product = {
             id: data.id,
             name: data.name,
@@ -51,24 +54,29 @@ const ProductDetail: React.FC = () => {
           setProduct(null);
         }
       } catch (err) {
-        console.error('Supabase 상세 조회 오류:', err);
+        console.error('상품 상세 조회 중 오류 발생:', err);
         setProduct(null);
       } finally {
         setIsLoading(false);
       }
     }
 
+    // 상품 상세 정보 가져오기
     fetchProductDetail();
   }, [id]);
 
+  // 자동 슬라이드 전환 인터벌
   useEffect(() => {
     if (!product || !isPlaying) return;
+    // 3초마다 자동 다음 이미지로 이동
     const interval = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % product.mainImages.length);
     }, 3000);
+    // 컴포넌트 언마운트 시 인터벌 정리
     return () => clearInterval(interval);
   }, [isPlaying, product]);
 
+  // 로딩 상태 표시
   if (isLoading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center', fontSize: '1.25rem' }}>
@@ -77,35 +85,41 @@ const ProductDetail: React.FC = () => {
     );
   }
 
+  // 상품이 없는 경우
   if (!product) {
     return <div style={{ padding: '20px', textAlign: 'center', fontSize: '1.2rem' }}>상품을 찾을 수 없습니다.</div>;
   }
 
+  // 이전 이미지로 이동
   const handlePrevImage = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPlaying(false);
     setActiveIndex((prev) => (prev - 1 + product.mainImages.length) % product.mainImages.length);
   };
 
+  // 다음 이미지로 이동
   const handleNextImage = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPlaying(false);
     setActiveIndex((prev) => (prev + 1) % product.mainImages.length);
   };
 
+  // 썸네일 클릭 처리
   const handleThumbnailClick = (idx: number) => {
     setIsPlaying(false);
     setActiveIndex(idx);
   };
 
+  // 이미지 클릭 시 확대
   const handleImageClick = () => {
     setIsPlaying(false);
     setZoomedImage(product.mainImages[activeIndex]);
   };
 
+  // 확대 화면 닫기
   const handleCloseZoom = () => {
     setZoomedImage(null);
-    // Optionally resume play when closed
+    // 닫기 후 자동 재생 재개
     setIsPlaying(true);
   };
 
