@@ -23,8 +23,6 @@ const ProductDetail: React.FC = () => {
           .from('products')
           .select('*, product_variants(*)')
           .eq('id', Number(id))
-          .eq('is_visible', true)
-          .eq('is_deleted', false)
           .single();
 
         if (error) throw error;
@@ -37,12 +35,14 @@ const ProductDetail: React.FC = () => {
             description: data.description || '',
             category: data.category || '',
             mainImages: data.main_images || [],
+            isDeleted: data.is_deleted === true,
+            isVisible: data.is_visible !== false,
             variants: (data.product_variants || [])
-              .filter((v: any) => v.is_visible !== false)
               .map((v: any) => ({
                 id: v.id,
                 colorName: v.color_name,
-                image: v.image
+                image: v.image,
+                isVisible: v.is_visible !== false
               }))
           };
           setProduct(mapped);
@@ -126,7 +126,7 @@ const ProductDetail: React.FC = () => {
               alt={`${product.name} 메인 이미지`}
               className="main-preview-img-slide"
             />
-            
+
             {/* 좌우 수동 이동 단추 (큰 터치 타겟) */}
             <button className="slide-arrow-btn left" onClick={handlePrevImage} aria-label="이전 사진 보기">
               ◀
@@ -141,7 +141,7 @@ const ProductDetail: React.FC = () => {
 
           {/* 자동 넘김 재생/일시정지 제어 바 */}
           <div className="slideshow-controls">
-            <button 
+            <button
               className={`play-pause-btn ${isPlaying ? 'playing' : 'paused'}`}
               onClick={() => setIsPlaying(!isPlaying)}
             >
@@ -173,10 +173,37 @@ const ProductDetail: React.FC = () => {
           <p className="product-price-large">{product.price.toLocaleString()}원</p>
           <p className="product-desc">{product.description}</p>
 
+          {product.isDeleted ? (
+            <div style={{
+              margin: '16px 0',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1.5px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontWeight: '800',
+              fontSize: '0.9rem'
+            }}>
+              이 상품은 품절되어 주문하실 수 없습니다.
+            </div>
+          ) : !product.isVisible ? (
+            <div style={{
+              margin: '16px 0',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(234, 179, 8, 0.1)',
+              border: '1.5px solid rgba(234, 179, 8, 0.3)',
+              color: '#ca8a04',
+              fontWeight: '800',
+              fontSize: '0.9rem'
+            }}>
+              이 상품은 일시품절되어 주문하실 수 없습니다.
+            </div>
+          ) : null}
+
           <div className="order-options-box">
             <h3 className="options-title">색상별 주문 수량 선택</h3>
             <p className="options-subtitle">색상별로 주문 수량을 선택해주세요.</p>
-            
             <div className="variants-vertical-list">
               {product.variants.map((variant) => {
                 const cartItem = cart.find(
@@ -185,12 +212,32 @@ const ProductDetail: React.FC = () => {
                 const quantity = cartItem ? cartItem.quantity : 0;
                 const isSelected = quantity > 0;
 
+                const isProductSoldOut = product.isDeleted;
+                const isProductTempSoldOut = !product.isVisible;
+                const isVariantTempSoldOut = variant.isVisible === false;
+
+                const isOrderDisabled = isProductSoldOut || isProductTempSoldOut || isVariantTempSoldOut;
+
+                let statusLabel = '';
+                if (isProductSoldOut) {
+                  statusLabel = '[품절]';
+                } else if (isProductTempSoldOut || isVariantTempSoldOut) {
+                  statusLabel = '[일시품절]';
+                }
+
                 return (
-                  <div key={variant.id} className={`variant-order-row ${isSelected ? 'selected' : ''}`}>
-                    <img 
-                      src={variant.image} 
-                      alt={variant.colorName} 
-                      className="variant-order-img" 
+                  <div
+                    key={variant.id}
+                    className={`variant-order-row ${isSelected ? 'selected' : ''}`}
+                    style={{
+                      opacity: isOrderDisabled ? 0.6 : 1,
+                      transition: 'opacity 0.2s'
+                    }}
+                  >
+                    <img
+                      src={variant.image}
+                      alt={variant.colorName}
+                      className="variant-order-img"
                       onClick={() => {
                         setIsPlaying(false);
                         setZoomedImage(variant.image);
@@ -199,11 +246,23 @@ const ProductDetail: React.FC = () => {
                       title="눌러서 사진 크게 보기"
                     />
                     <div className="variant-order-info">
-                      <span className="variant-color-name">{variant.colorName}</span>
+                      <span className="variant-color-name">
+                        {variant.colorName}
+                        {statusLabel && (
+                          <span style={{
+                            color: isProductSoldOut ? '#ef4444' : '#eab308',
+                            marginLeft: '6px',
+                            fontWeight: '800',
+                            fontSize: '0.8rem'
+                          }}>
+                            {statusLabel}
+                          </span>
+                        )}
+                      </span>
                       <span className="variant-price-sub">{product.price.toLocaleString()}원</span>
                     </div>
                     <div className="variant-order-qty">
-                      <button 
+                      <button
                         onClick={() => addToCart(product, variant, -1)}
                         className="qty-adjust-btn minus"
                         disabled={quantity === 0}
@@ -212,10 +271,14 @@ const ProductDetail: React.FC = () => {
                         -
                       </button>
                       <span className="qty-value-display">{quantity}</span>
-                      <button 
+                      <button
                         onClick={() => addToCart(product, variant, 1)}
                         className="qty-adjust-btn plus"
+                        disabled={isOrderDisabled}
                         aria-label="수량 증가"
+                        style={{
+                          cursor: isOrderDisabled ? 'not-allowed' : 'pointer'
+                        }}
                       >
                         +
                       </button>
@@ -235,10 +298,10 @@ const ProductDetail: React.FC = () => {
             <button className="zoom-close-text-btn" onClick={handleCloseZoom}>
               ◀ 크게 보기 닫기 (돌아가기)
             </button>
-            <img 
-              src={zoomedImage} 
-              alt={`${product.name} 확대 사진`} 
-              className="zoomed-main-img" 
+            <img
+              src={zoomedImage}
+              alt={`${product.name} 확대 사진`}
+              className="zoomed-main-img"
             />
             <p className="zoom-caption">사진 주변의 빈 공간을 누르셔도 화면이 닫힙니다.</p>
           </div>

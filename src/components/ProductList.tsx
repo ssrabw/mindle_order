@@ -14,9 +14,7 @@ const ProductList: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*, product_variants(*)')
-          .eq('is_visible', true)
-          .eq('is_deleted', false);
+          .select('*, product_variants(*)');
 
         if (error) throw error;
 
@@ -28,12 +26,14 @@ const ProductList: React.FC = () => {
             description: p.description || '',
             category: p.category || '',
             mainImages: p.main_images || [],
+            isDeleted: p.is_deleted === true,
+            isVisible: p.is_visible !== false,
             variants: (p.product_variants || [])
-              .filter((v: any) => v.is_visible !== false)
               .map((v: any) => ({
                 id: v.id,
                 colorName: v.color_name,
-                image: v.image
+                image: v.image,
+                isVisible: v.is_visible !== false
               }))
           }));
           setProducts(mapped);
@@ -141,25 +141,68 @@ const ProductList: React.FC = () => {
               : '등록된 상품이 없습니다.'}
           </div>
         ) : (
-          filteredProducts.map((product) => (
-            <Link
-              to={`/product/${product.id}`}
-              key={product.id}
-              className="product-card"
-            >
-              <img
-                src={product.mainImages[0] || ''}
-                alt={product.name}
-                className="product-card-img"
-              />
-              <div className="product-card-info">
-                <h3 className="product-card-name">{product.name}</h3>
-                <p className="product-card-price">
-                  {product.price.toLocaleString()}원
-                </p>
-              </div>
-            </Link>
-          ))
+          filteredProducts.map((product) => {
+            const isSoldOut = product.isDeleted;
+            const isTempSoldOut = !product.isVisible;
+            return (
+              <Link
+                to={`/product/${product.id}`}
+                key={product.id}
+                className="product-card"
+                style={{
+                  position: 'relative',
+                  opacity: (isSoldOut || isTempSoldOut) ? 0.6 : 1,
+                  transition: 'opacity 0.2s',
+                  pointerEvents: 'auto'
+                }}
+              >
+                {/* Diagonal line for Sold Out */}
+                {isSoldOut && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'linear-gradient(to top right, transparent 49.5%, rgba(156, 163, 175, 0.8) 49.5%, rgba(156, 163, 175, 0.8) 50.5%, transparent 50.5%)',
+                    zIndex: 2,
+                    pointerEvents: 'none'
+                  }} />
+                )}
+
+                {/* Badge for Sold Out / Temporarily Sold Out */}
+                {(isSoldOut || isTempSoldOut) && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    backgroundColor: isSoldOut ? '#ef4444' : '#eab308',
+                    color: 'white',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    zIndex: 3,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                  }}>
+                    {isSoldOut ? '품절' : '일시품절'}
+                  </div>
+                )}
+
+                <img
+                  src={product.mainImages[0] || ''}
+                  alt={product.name}
+                  className="product-card-img"
+                />
+                <div className="product-card-info">
+                  <h3 className="product-card-name">{product.name}</h3>
+                  <p className="product-card-price">
+                    {product.price.toLocaleString()}원
+                  </p>
+                </div>
+              </Link>
+            );
+          })
         )}
       </div>
     </div>

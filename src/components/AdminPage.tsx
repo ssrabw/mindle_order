@@ -209,7 +209,7 @@ export default function AdminPage() {
   const handleDeleteProduct = async (productId: number, productName: string) => {
     if (
       !confirm(
-        `정말로 "${productName}" 상품을 삭제하시겠습니까?\n이 작업은 일반 사용자 화면에서 상품을 보이지 않게 처리(블라인드)합니다.`
+        `정말로 "${productName}" 상품을 품절 처리하시겠습니까?\n이 작업은 일반 사용자 화면에서 상품을 보이지 않게 처리(블라인드)합니다.`
       )
     )
       return;
@@ -225,9 +225,9 @@ export default function AdminPage() {
       setDbProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, is_deleted: true } : p))
       );
-      alert('상품이 삭제 처리되었습니다. 삭제된 상품 탭에서 확인하실 수 있습니다.');
+      alert('상품이 품절 처리되었습니다. 품절된 상품 탭에서 확인하실 수 있습니다.');
     } catch (err: any) {
-      alert(`상품 삭제 중 오류: ${err.message}`);
+      alert(`상품 품절 처리 중 오류: ${err.message}`);
     }
   };
 
@@ -304,7 +304,7 @@ export default function AdminPage() {
 
   // Variant deletion
   const handleDeleteVariant = async (variantId: string, colorName: string) => {
-    if (!confirm(`⚠️ 정말로 "${colorName}" 옵션을 삭제하시겠습니까?`)) return;
+    if (!confirm(`⚠️ 정말로 "${colorName}" 옵션을 품절 처리하시겠습니까?`)) return;
 
     try {
       const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
@@ -312,9 +312,9 @@ export default function AdminPage() {
       if (error) throw error;
 
       setDbVariants((prev) => prev.filter((v) => v.id !== variantId));
-      alert('옵션이 삭제되었습니다.');
+      alert('옵션이 품절 처리되었습니다.');
     } catch (err: any) {
-      alert(`옵션 삭제 중 오류: ${err.message}`);
+      alert(`옵션 품절 처리 중 오류: ${err.message}`);
     }
   };
 
@@ -963,7 +963,7 @@ export default function AdminPage() {
           className={`tab-btn ${activeTab === 'trash' ? 'active' : ''}`}
           onClick={() => setActiveTab('trash')}
         >
-          삭제된 상품
+          품절된 상품
         </button>
       </nav>
 
@@ -984,11 +984,11 @@ export default function AdminPage() {
               ) : tabProducts.length === 0 ? (
                 <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center', width: '100%' }}>
                   <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                    {activeTab === 'trash' ? '삭제된 상품이 없습니다.' : '등록된 상품이 없습니다.'}
+                    {activeTab === 'trash' ? '품절된 상품이 없습니다.' : '등록된 상품이 없습니다.'}
                   </p>
                   <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
                     {activeTab === 'trash'
-                      ? '상품 관리 탭에서 상품을 삭제하면 여기에 보관됩니다.'
+                      ? '상품 관리 탭에서 상품을 품절 처리하면 여기에 보관됩니다.'
                       : '[신규 상품 등록] 탭에서 첫 상품을 추가해보세요!'}
                   </p>
                 </div>
@@ -1214,7 +1214,7 @@ export default function AdminPage() {
                                 )}
                                 <span className="manage-product-id">ID: {product.id}</span>
                                 <h3 className="manage-product-title">
-                                  {product.is_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[삭제됨]</span>}
+                                  {product.is_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[품절됨]</span>}
                                   {product.name}
                                 </h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
@@ -1369,7 +1369,7 @@ export default function AdminPage() {
                                 <>
                                   <div className="visibility-toggle-group">
                                     <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#ef4444' }}>
-                                      블라인드 상태
+                                      품절 상태
                                     </span>
                                   </div>
                                   <button
@@ -1405,7 +1405,7 @@ export default function AdminPage() {
                                       <span className="toggle-slider"></span>
                                     </label>
                                     <span className={`visibility-label ${product.is_visible ? 'visible' : 'hidden'}`}>
-                                      {product.is_visible ? '쇼핑몰 노출 중' : '노출 중단됨'}
+                                      {product.is_visible ? '쇼핑몰 노출 중' : '임시 품절'}
                                     </span>
                                   </div>
 
@@ -1414,7 +1414,7 @@ export default function AdminPage() {
                                     className="delete-product-action-btn"
                                     onClick={() => handleDeleteProduct(product.id, product.name)}
                                   >
-                                    상품 삭제
+                                    상품 품절
                                   </button>
                                 </>
                               )}
@@ -1440,22 +1440,22 @@ export default function AdminPage() {
                                             <button
                                               className={`variant-visibility-btn ${variant.is_visible ? 'visible' : 'hidden'}`}
                                               onClick={() => handleToggleVariantVisibility(variant.id, variant.is_visible)}
-                                              title={variant.is_visible ? '노출 중 (클릭 시 중단)' : '노출 중단됨 (클릭 시 노출)'}
+                                              title={variant.is_visible ? '노출 중 (클릭 시 임시 품절)' : '임시 품절 (클릭 시 노출)'}
                                             >
-                                              {variant.is_visible ? '노출' : '숨김'}
+                                              {variant.is_visible ? '노출' : '임시 품절'}
                                             </button>
                                             {/* 색상 삭제 */}
                                             <button
                                               className="variant-delete-btn"
                                               onClick={() => handleDeleteVariant(variant.id, variant.color_name)}
-                                              title="옵션 삭제"
+                                              title="옵션 품절"
                                             >
                                               ✕
                                             </button>
                                           </>
                                         ) : (
                                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                            {variant.is_visible ? '노출 상태' : '숨김 상태'}
+                                            {variant.is_visible ? '노출 상태' : '임시 품절 상태'}
                                           </span>
                                         )}
                                       </div>
