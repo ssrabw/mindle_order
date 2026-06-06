@@ -3108,6 +3108,7 @@
 
 .inline-variant-name-input {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px !important;
   font-size: 0.85rem !important;
   border-radius: 8px !important;
@@ -3129,6 +3130,8 @@
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease-in-out;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .inline-variant-add-submit-btn:hover:not(:disabled) {
@@ -3857,4 +3860,112 @@ select:focus {
 
 .category-edit-badge-btn:active {
   transform: translateY(0);
+}
+
+/* --- Best Products Section --- */
+.best-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  z-index: 3;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.best-products-section {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.best-products-marquee-wrapper {
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+  mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+}
+
+.best-products-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: bestMarqueeScroll 10s linear infinite;
+}
+
+.best-products-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+.best-products-marquee-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 16px;
+  padding-right: 16px;
+}
+
+.best-product-card {
+  width: 190px;
+  flex-shrink: 0;
+}
+
+.best-product-card .product-card-name {
+  height: auto !important;
+  margin-bottom: 4px;
+}
+
+.best-product-card .product-card-info {
+  padding: 8px !important;
+}
+
+.best-products-static-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+  overflow-x: auto;
+}
+
+@keyframes bestMarqueeScroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 768px) {
+  .best-product-card {
+    width: 125px;
+  }
+}
+
+/* Completely Deleted Product Card in Admin */
+.real-deleted-card {
+  opacity: 0.45 !important;
+  filter: grayscale(80%) !important;
+}
+
+.real-deleted-card:hover {
+  opacity: 0.65 !important;
+  filter: grayscale(50%) !important;
 }

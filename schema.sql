@@ -9,6 +9,8 @@ CREATE TABLE public.products (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()), -- 생성 일시임
   is_visible boolean NOT NULL DEFAULT true, -- 상품 노출 여부 토글 컬럼임
   is_deleted boolean NOT NULL DEFAULT false, -- 상품 삭제 여부(Soft Delete) 토글 컬럼임
+  is_best boolean NOT NULL DEFAULT false, -- 베스트 상품 지정 여부임
+  is_real_deleted boolean NOT NULL DEFAULT false, -- 상품 완전 삭제 여부임
   CONSTRAINT products_pkey PRIMARY KEY (id)
 );
 
@@ -194,6 +196,6 @@ $$;
 -- 13. 실시간 업데이트 활성화 구문 정보임 (Supabase 대시보드 SQL 에디터 전용임)
 -- alter publication supabase_realtime add table public.orders;
 
--- 14. [추가 마이그레이션 용도] 기존 테이블에 체크 박스 상태 저장 컬럼 추가 정보임
 -- ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS is_checked boolean NOT NULL DEFAULT false;
 -- ALTER TABLE public.misong_order_items ADD COLUMN IF NOT EXISTS is_checked boolean NOT NULL DEFAULT false;
+-- ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_best boolean NOT NULL DEFAULT false;

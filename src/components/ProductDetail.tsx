@@ -27,7 +27,7 @@ const ProductDetail: React.FC = () => {
 
         if (error) throw error;
 
-        if (data) {
+        if (data && data.is_real_deleted !== true) {
           const mapped: Product = {
             id: data.id,
             name: data.name,
@@ -37,6 +37,7 @@ const ProductDetail: React.FC = () => {
             mainImages: data.main_images || [],
             isDeleted: data.is_deleted === true,
             isVisible: data.is_visible !== false,
+            isRealDeleted: data.is_real_deleted === true,
             variants: (data.product_variants || [])
               .map((v: any) => ({
                 id: v.id,

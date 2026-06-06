@@ -15,4 +15,6 @@ export interface Product {
   category: string;
   isDeleted?: boolean;
   isVisible?: boolean;
+  isBest?: boolean;
+  isRealDeleted?: boolean;
 }

@@ -18,6 +18,8 @@ interface ProductFromDb {
   main_images: string[];
   is_visible: boolean;
   is_deleted?: boolean;
+  is_best?: boolean;
+  is_real_deleted?: boolean;
   created_at: string;
 }
 
@@ -68,8 +70,8 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState<string>('');
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
 
-  // Tab State: 'manage' | 'register' | 'trash'
-  const [activeTab, setActiveTab] = useState<'manage' | 'register' | 'trash'>('manage');
+  // Tab State: 'manage' | 'register' | 'trash' | 'deleted'
+  const [activeTab, setActiveTab] = useState<'manage' | 'register' | 'trash' | 'deleted'>('manage');
 
   // DB Products and Variants for Management
   const [dbProducts, setDbProducts] = useState<ProductFromDb[]>([]);
@@ -100,6 +102,11 @@ export default function AdminPage() {
   const [newCategoryValue, setNewCategoryValue] = useState<string>('');
   const [newCustomCategoryValue, setNewCustomCategoryValue] = useState<string>('');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
+
+  // Best Product UI States
+  const [isBestModalOpen, setIsBestModalOpen] = useState<boolean>(false);
+  const [bestSearchQuery, setBestSearchQuery] = useState<string>('');
+  const [bestTogglingIds, setBestTogglingIds] = useState<Record<number, boolean>>({});
 
   // Product ID (Generated on load/reset as a 5-digit number)
   const [productId, setProductId] = useState<number>(() => Math.floor(10000 + Math.random() * 90000));
@@ -182,10 +189,35 @@ export default function AdminPage() {
 
   // 2. Fetch data when authenticated
   useEffect(() => {
-    if (isAuthenticated && (activeTab === 'manage' || activeTab === 'trash')) {
+    if (isAuthenticated && (activeTab === 'manage' || activeTab === 'trash' || activeTab === 'deleted')) {
       fetchProductsAndVariants();
     }
   }, [isAuthenticated, activeTab]);
+
+  // Toggle best product state in DB
+  const handleToggleBestProduct = async (productId: number, currentIsBest: boolean) => {
+    setBestTogglingIds(prev => ({ ...prev, [productId]: true }));
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_best: !currentIsBest })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      setDbProducts(prev =>
+        prev.map(p => p.id === productId ? { ...p, is_best: !currentIsBest } : p)
+      );
+    } catch (err: any) {
+      alert(`베스트 설정 변경 중 오류: ${err.message}`);
+    } finally {
+      setBestTogglingIds(prev => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
+    }
+  };
 
   // Product visibility toggle
   const handleToggleProductVisibility = async (productId: number, currentVisibility: boolean) => {
@@ -250,6 +282,58 @@ export default function AdminPage() {
 
       setDbProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, is_deleted: false } : p))
+      );
+      alert('상품이 성공적으로 복원되었습니다.');
+    } catch (err: any) {
+      alert(`상품 복원 중 오류: ${err.message}`);
+    }
+  };
+
+  // Real Delete Product
+  const handleRealDeleteProduct = async (productId: number, productName: string) => {
+    if (
+      !confirm(
+        `정말로 "${productName}" 상품을 완전 삭제하시겠습니까?\n이 작업은 쇼핑몰 화면에서 상품을 완전히 제거합니다.`
+      )
+    )
+      return;
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_real_deleted: true })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      setDbProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, is_real_deleted: true } : p))
+      );
+      alert('상품이 완전 삭제되었습니다. 삭제된 상품 탭에서 확인하실 수 있습니다.');
+    } catch (err: any) {
+      alert(`상품 완전 삭제 중 오류: ${err.message}`);
+    }
+  };
+
+  // Restore Real Deleted Product
+  const handleRestoreRealDeletedProduct = async (productId: number, productName: string) => {
+    if (
+      !confirm(
+        `"${productName}" 상품을 복원하시겠습니까?\n복원 후에는 이전 상태에 따라 다시 노출됩니다.`
+      )
+    )
+      return;
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_real_deleted: false })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      setDbProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, is_real_deleted: false } : p))
       );
       alert('상품이 성공적으로 복원되었습니다.');
     } catch (err: any) {
@@ -514,7 +598,7 @@ export default function AdminPage() {
         if (errJson && errJson.error) {
           errMsg = errJson.error;
         }
-      } catch (_) {}
+      } catch (_) { }
       throw new Error(`이미지 업로드 실패: ${errMsg || response.statusText || response.status}`);
     }
 
@@ -960,19 +1044,45 @@ export default function AdminPage() {
           상품 등록
         </button>
         <button
+          className="tab-btn"
+          style={{
+            backgroundColor: 'rgba(234, 179, 8, 0.15)',
+            color: '#ca8a04',
+            border: '1.5px solid rgba(234, 179, 8, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          onClick={() => setIsBestModalOpen(true)}
+        >
+          베스트 설정
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'trash' ? 'active' : ''}`}
           onClick={() => setActiveTab('trash')}
         >
           품절된 상품
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`}
+          onClick={() => setActiveTab('deleted')}
+        >
+          삭제된 상품
+        </button>
       </nav>
 
       {/* Tab Contents */}
       <main className="admin-main-content">
-        {activeTab === 'manage' || activeTab === 'trash' ? (() => {
-          const tabProducts = dbProducts.filter((p) =>
-            activeTab === 'trash' ? p.is_deleted === true : !p.is_deleted
-          );
+        {activeTab === 'manage' || activeTab === 'trash' || activeTab === 'deleted' ? (() => {
+          const tabProducts = dbProducts.filter((p) => {
+            if (p.is_real_deleted === true) {
+              return activeTab === 'deleted';
+            }
+            if (activeTab === 'deleted') {
+              return false;
+            }
+            return activeTab === 'trash' ? p.is_deleted === true : !p.is_deleted;
+          });
 
           return (
             <div className="product-manage-container">
@@ -984,10 +1094,16 @@ export default function AdminPage() {
               ) : tabProducts.length === 0 ? (
                 <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center', width: '100%' }}>
                   <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                    {activeTab === 'trash' ? '품절된 상품이 없습니다.' : '등록된 상품이 없습니다.'}
+                    {activeTab === 'deleted'
+                      ? '삭제된 상품이 없습니다.'
+                      : activeTab === 'trash'
+                      ? '품절된 상품이 없습니다.'
+                      : '등록된 상품이 없습니다.'}
                   </p>
                   <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
-                    {activeTab === 'trash'
+                    {activeTab === 'deleted'
+                      ? '상품 관리 및 품절 상품 탭에서 상품을 완전 삭제하면 여기에 보관됩니다.'
+                      : activeTab === 'trash'
                       ? '상품 관리 탭에서 상품을 품절 처리하면 여기에 보관됩니다.'
                       : '[신규 상품 등록] 탭에서 첫 상품을 추가해보세요!'}
                   </p>
@@ -1047,483 +1163,544 @@ export default function AdminPage() {
                       </button>
                     </div>
 
-                  {/* Row 2: 상품 ID 및 상품명 검색 입력창 (가운데 정렬) */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    maxWidth: '500px',
-                    boxSizing: 'border-box'
-                  }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span>
-                    <input
-                      type="text"
-                      placeholder="상품명 또는 상품 ID 검색"
-                      value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 14px',
-                        borderRadius: '20px',
-                        border: '1.5px solid var(--border)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                        color: 'var(--text-h)',
-                        fontSize: '0.9rem',
-                        fontWeight: '700',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                        width: '100%'
-                      }}
-                    />
+                    {/* Row 2: 상품 ID 및 상품명 검색 입력창 (가운데 정렬) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      maxWidth: '500px',
+                      boxSizing: 'border-box'
+                    }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span>
+                      <input
+                        type="text"
+                        placeholder="상품명 또는 상품 ID 검색"
+                        value={productSearchQuery}
+                        onChange={(e) => setProductSearchQuery(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 14px',
+                          borderRadius: '20px',
+                          border: '1.5px solid var(--border)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'var(--text-h)',
+                          fontSize: '0.9rem',
+                          fontWeight: '700',
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {(() => {
-                  const filtered = tabProducts.filter((product) => {
-                    // 1. Category Filter
-                    if (selectedCategory !== '전체' && product.category !== selectedCategory) {
-                      return false;
-                    }
-                    // 2. Search Query (ID or Name)
-                    const query = productSearchQuery.trim().toLowerCase();
-                    if (query) {
-                      const nameMatch = product.name.toLowerCase().includes(query);
-                      const idMatch = String(product.id).includes(query);
-                      return nameMatch || idMatch;
-                    }
-                    return true;
-                  });
+                  {(() => {
+                    const filtered = tabProducts.filter((product) => {
+                      // 1. Category Filter
+                      if (selectedCategory !== '전체' && product.category !== selectedCategory) {
+                        return false;
+                      }
+                      // 2. Search Query (ID or Name)
+                      const query = productSearchQuery.trim().toLowerCase();
+                      if (query) {
+                        const nameMatch = product.name.toLowerCase().includes(query);
+                        const idMatch = String(product.id).includes(query);
+                        return nameMatch || idMatch;
+                      }
+                      return true;
+                    });
 
-                  if (filtered.length === 0) {
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center', width: '100%' }}>
+                          <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>검색 및 필터 결과와 일치하는 상품이 없습니다.</p>
+                          <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>검색어나 필터 카테고리를 변경해 보세요.</p>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div className="empty-products-msg glassmorphism" style={{ padding: '60px 20px', textAlign: 'center', width: '100%' }}>
-                        <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>검색 및 필터 결과와 일치하는 상품이 없습니다.</p>
-                        <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>검색어나 필터 카테고리를 변경해 보세요.</p>
-                      </div>
-                    );
-                  }
+                      <div className="manage-products-grid">
+                        {filtered.map((product) => {
+                          const productVariants = dbVariants.filter(v => v.product_id === product.id);
+                          const inlineInput = getInlineInput(product.id);
 
-                  return (
-                    <div className="manage-products-grid">
-                      {filtered.map((product) => {
-                        const productVariants = dbVariants.filter(v => v.product_id === product.id);
-                        const inlineInput = getInlineInput(product.id);
-
-                        return (
-                          <div key={product.id} className={`manage-product-card glassmorphism ${product.is_deleted ? 'blind-product-card' : ''}`}>
-                            <div className="manage-product-header">
-                              <div className="manage-product-info">
-                                {editingCategoryProductId === product.id ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                    <select
-                                      value={newCategoryValue}
-                                      onChange={(e) => setNewCategoryValue(e.target.value)}
-                                      style={{
-                                        padding: '4px 8px',
-                                        borderRadius: '6px',
-                                        border: '1.5px solid var(--border)',
-                                        backgroundColor: 'var(--bg)',
-                                        color: 'var(--text-h)',
-                                        fontWeight: '700',
-                                        fontSize: '0.85rem'
-                                      }}
-                                    >
-                                      <option value="스카프">스카프</option>
-                                      <option value="모자">모자</option>
-                                      <option value="두건">두건</option>
-                                      <option value="잡화">잡화</option>
-                                      {!['스카프', '모자', '두건', '잡화'].includes(product.category) && (
-                                        <option value={product.category}>{product.category}</option>
-                                      )}
-                                      <option value="직접입력">직접 입력...</option>
-                                    </select>
-                                    
-                                    {newCategoryValue === '직접입력' && (
-                                      <input
-                                        type="text"
-                                        value={newCustomCategoryValue}
-                                        onChange={(e) => setNewCustomCategoryValue(e.target.value)}
-                                        placeholder="카테고리 직접 입력"
+                          return (
+                            <div key={product.id} className={`manage-product-card glassmorphism ${product.is_real_deleted ? 'blind-product-card real-deleted-card' : product.is_deleted ? 'blind-product-card' : ''}`}>
+                              <div className="manage-product-header">
+                                <div className="manage-product-info">
+                                  {editingCategoryProductId === product.id ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                      <select
+                                        value={newCategoryValue}
+                                        onChange={(e) => setNewCategoryValue(e.target.value)}
                                         style={{
                                           padding: '4px 8px',
                                           borderRadius: '6px',
                                           border: '1.5px solid var(--border)',
                                           backgroundColor: 'var(--bg)',
                                           color: 'var(--text-h)',
-                                          fontSize: '0.8rem',
                                           fontWeight: '700',
-                                          width: '120px'
+                                          fontSize: '0.85rem'
                                         }}
-                                      />
-                                    )}
+                                      >
+                                        <option value="스카프">스카프</option>
+                                        <option value="모자">모자</option>
+                                        <option value="두건">두건</option>
+                                        <option value="잡화">잡화</option>
+                                        {!['스카프', '모자', '두건', '잡화'].includes(product.category) && (
+                                          <option value={product.category}>{product.category}</option>
+                                        )}
+                                        <option value="직접입력">직접 입력...</option>
+                                      </select>
 
-                                    <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                                      <button
-                                        onClick={() => handleSaveCategory(product.id)}
-                                        style={{
-                                          padding: '2px 8px',
-                                          borderRadius: '4px',
-                                          border: 'none',
-                                          backgroundColor: 'var(--accent)',
-                                          color: 'white',
-                                          fontWeight: '800',
-                                          fontSize: '0.75rem',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        저장
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setEditingCategoryProductId(null);
-                                          setNewCategoryValue('');
-                                          setNewCustomCategoryValue('');
-                                        }}
-                                        style={{
-                                          padding: '2px 8px',
-                                          borderRadius: '4px',
-                                          border: '1px solid var(--border)',
-                                          backgroundColor: 'transparent',
-                                          color: 'var(--text-muted)',
-                                          fontWeight: '800',
-                                          fontSize: '0.75rem',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        취소
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (product.is_deleted) return;
-                                      setEditingCategoryProductId(product.id);
-                                      setNewCategoryValue(product.category);
-                                      setNewCustomCategoryValue('');
-                                    }}
-                                    className="category-edit-badge-btn"
-                                    style={{
-                                      cursor: product.is_deleted ? 'default' : 'pointer'
-                                    }}
-                                  >
-                                    {product.category}
-                                  </button>
-                                )}
-                                <span className="manage-product-id">ID: {product.id}</span>
-                                <h3 className="manage-product-title">
-                                  {product.is_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[품절됨]</span>}
-                                  {product.name}
-                                </h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                  {editingPriceProductId === product.id ? (
-                                    <>
-                                      <input
-                                        type="number"
-                                        value={newPriceValue}
-                                        onChange={(e) => setNewPriceValue(e.target.value)}
-                                        style={{
-                                          width: '100px',
-                                          padding: '4px 8px',
-                                          borderRadius: '6px',
-                                          border: '1.5px solid var(--accent)',
-                                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                          color: 'var(--text-h)',
-                                          fontWeight: '700',
-                                          fontSize: '0.95rem',
-                                          outline: 'none'
-                                        }}
-                                        autoFocus
-                                      />
-                                      <button
-                                        onClick={() => handleSavePrice(product.id)}
-                                        style={{
-                                          padding: '4px 8px',
-                                          borderRadius: '6px',
-                                          border: 'none',
-                                          backgroundColor: 'var(--accent)',
-                                          color: 'white',
-                                          fontWeight: '700',
-                                          fontSize: '0.85rem',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        저장
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setEditingPriceProductId(null);
-                                          setNewPriceValue('');
-                                        }}
-                                        style={{
-                                          padding: '4px 8px',
-                                          borderRadius: '6px',
-                                          border: '1px solid var(--border)',
-                                          backgroundColor: 'transparent',
-                                          color: 'var(--text-muted)',
-                                          fontWeight: '700',
-                                          fontSize: '0.85rem',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        취소
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <p className="manage-product-price" style={{ margin: 0 }}>{Number(product.price).toLocaleString()}원</p>
-                                      {!product.is_deleted && (
+                                      {newCategoryValue === '직접입력' && (
+                                        <input
+                                          type="text"
+                                          value={newCustomCategoryValue}
+                                          onChange={(e) => setNewCustomCategoryValue(e.target.value)}
+                                          placeholder="카테고리 직접 입력"
+                                          style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            border: '1.5px solid var(--border)',
+                                            backgroundColor: 'var(--bg)',
+                                            color: 'var(--text-h)',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '700',
+                                            width: '120px'
+                                          }}
+                                        />
+                                      )}
+
+                                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                                        <button
+                                          onClick={() => handleSaveCategory(product.id)}
+                                          style={{
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
+                                            border: 'none',
+                                            backgroundColor: 'var(--accent)',
+                                            color: 'white',
+                                            fontWeight: '800',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          저장
+                                        </button>
                                         <button
                                           onClick={() => {
-                                            setEditingPriceProductId(product.id);
-                                            setNewPriceValue(String(product.price));
+                                            setEditingCategoryProductId(null);
+                                            setNewCategoryValue('');
+                                            setNewCustomCategoryValue('');
                                           }}
                                           style={{
-                                            padding: '3px 8px',
-                                            borderRadius: '12px',
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
                                             border: '1px solid var(--border)',
                                             backgroundColor: 'transparent',
                                             color: 'var(--text-muted)',
                                             fontWeight: '800',
                                             fontSize: '0.75rem',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '2px'
+                                            cursor: 'pointer'
                                           }}
-                                          className="price-edit-btn"
                                         >
-                                          수정
+                                          취소
                                         </button>
-                                      )}
-                                    </>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (product.is_deleted) return;
+                                        setEditingCategoryProductId(product.id);
+                                        setNewCategoryValue(product.category);
+                                        setNewCustomCategoryValue('');
+                                      }}
+                                      className="category-edit-badge-btn"
+                                      style={{
+                                        cursor: product.is_deleted ? 'default' : 'pointer'
+                                      }}
+                                    >
+                                      {product.category}
+                                    </button>
+                                  )}
+                                  <span className="manage-product-id">ID: {product.id}</span>
+                                  <h3 className="manage-product-title">
+                                    {product.is_real_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[삭제됨]</span>}
+                                    {!product.is_real_deleted && product.is_deleted && <span style={{ color: '#ef4444', marginRight: '6px', fontWeight: '800' }}>[품절됨]</span>}
+                                    {product.name}
+                                  </h3>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                    {editingPriceProductId === product.id ? (
+                                      <>
+                                        <input
+                                          type="number"
+                                          value={newPriceValue}
+                                          onChange={(e) => setNewPriceValue(e.target.value)}
+                                          style={{
+                                            width: '100px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            border: '1.5px solid var(--accent)',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                            color: 'var(--text-h)',
+                                            fontWeight: '700',
+                                            fontSize: '0.95rem',
+                                            outline: 'none'
+                                          }}
+                                          autoFocus
+                                        />
+                                        <button
+                                          onClick={() => handleSavePrice(product.id)}
+                                          style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            backgroundColor: 'var(--accent)',
+                                            color: 'white',
+                                            fontWeight: '700',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          저장
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingPriceProductId(null);
+                                            setNewPriceValue('');
+                                          }}
+                                          style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            border: '1px solid var(--border)',
+                                            backgroundColor: 'transparent',
+                                            color: 'var(--text-muted)',
+                                            fontWeight: '700',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          취소
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <p className="manage-product-price" style={{ margin: 0 }}>{Number(product.price).toLocaleString()}원</p>
+                                        {!product.is_deleted && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingPriceProductId(product.id);
+                                              setNewPriceValue(String(product.price));
+                                            }}
+                                            style={{
+                                              padding: '3px 8px',
+                                              borderRadius: '12px',
+                                              border: '1px solid var(--border)',
+                                              backgroundColor: 'transparent',
+                                              color: 'var(--text-muted)',
+                                              fontWeight: '800',
+                                              fontSize: '0.75rem',
+                                              cursor: 'pointer',
+                                              transition: 'all 0.2s',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '2px'
+                                            }}
+                                            className="price-edit-btn"
+                                          >
+                                            수정
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="manage-product-desc-preview" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--text-muted)', maxHeight: '60px', overflowY: 'auto', lineHeight: '1.4', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border)', paddingTop: '6px' }}>
+                                    {product.description || '등록된 소개글이 없습니다.'}
+                                  </div>
+                                </div>
+                                <div className="manage-product-thumbnail-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                                  <img
+                                    src={product.main_images[0] || 'https://via.placeholder.com/150'}
+                                    alt={product.name}
+                                    className="manage-product-thumbnail"
+                                    style={{ margin: 0 }}
+                                  />
+                                  {!product.is_deleted && (
+                                    <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => openMainImagesEditModal(product)}
+                                        className="thumbnail-edit-btn"
+                                        style={{
+                                          flex: 1,
+                                          padding: '3px 0',
+                                          borderRadius: '6px',
+                                          border: '1.5px solid var(--border)',
+                                          backgroundColor: 'var(--bg)',
+                                          color: 'var(--text-h)',
+                                          fontWeight: '800',
+                                          fontSize: '0.7rem',
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                                          transition: 'all 0.2s ease-in-out',
+                                          textAlign: 'center',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                      >
+                                        이미지
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openDescEditModal(product)}
+                                        className="desc-edit-btn"
+                                        style={{
+                                          flex: 1,
+                                          padding: '3px 0',
+                                          borderRadius: '6px',
+                                          border: '1.5px solid var(--border)',
+                                          backgroundColor: 'var(--bg)',
+                                          color: 'var(--text-h)',
+                                          fontWeight: '800',
+                                          fontSize: '0.7rem',
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                                          transition: 'all 0.2s ease-in-out',
+                                          textAlign: 'center',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                      >
+                                        소개글
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
-                                <div className="manage-product-desc-preview" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--text-muted)', maxHeight: '60px', overflowY: 'auto', lineHeight: '1.4', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border)', paddingTop: '6px' }}>
-                                  {product.description || '등록된 소개글이 없습니다.'}
-                                </div>
                               </div>
-                              <div className="manage-product-thumbnail-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                                <img
-                                  src={product.main_images[0] || 'https://via.placeholder.com/150'}
-                                  alt={product.name}
-                                  className="manage-product-thumbnail"
-                                  style={{ margin: 0 }}
-                                />
-                                {!product.is_deleted && (
-                                  <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center' }}>
+
+                              <div className="manage-product-controls" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                                {product.is_real_deleted ? (
+                                  <>
+                                    <div className="visibility-toggle-group">
+                                      <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#ef4444' }}>
+                                        완전 삭제 상태
+                                      </span>
+                                    </div>
                                     <button
                                       type="button"
-                                      onClick={() => openMainImagesEditModal(product)}
-                                      className="thumbnail-edit-btn"
+                                      className="restore-product-action-btn"
+                                      onClick={() => handleRestoreRealDeletedProduct(product.id, product.name)}
                                       style={{
-                                        flex: 1,
-                                        padding: '3px 0',
-                                        borderRadius: '6px',
-                                        border: '1.5px solid var(--border)',
-                                        backgroundColor: 'var(--bg)',
-                                        color: 'var(--text-h)',
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        border: '2px solid var(--accent)',
+                                        backgroundColor: 'var(--accent)',
+                                        color: 'white',
                                         fontWeight: '800',
-                                        fontSize: '0.7rem',
+                                        fontSize: '0.85rem',
                                         cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                                        transition: 'all 0.2s ease-in-out',
-                                        textAlign: 'center',
-                                        whiteSpace: 'nowrap'
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                                        transition: 'all 0.2s ease'
                                       }}
                                     >
-                                      이미지
+                                      복원하기
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => openDescEditModal(product)}
-                                      className="desc-edit-btn"
-                                      style={{
-                                        flex: 1,
-                                        padding: '3px 0',
-                                        borderRadius: '6px',
-                                        border: '1.5px solid var(--border)',
-                                        backgroundColor: 'var(--bg)',
-                                        color: 'var(--text-h)',
-                                        fontWeight: '800',
-                                        fontSize: '0.7rem',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                                        transition: 'all 0.2s ease-in-out',
-                                        textAlign: 'center',
-                                        whiteSpace: 'nowrap'
-                                      }}
-                                    >
-                                      소개글
-                                    </button>
+                                  </>
+                                ) : product.is_deleted ? (
+                                  <>
+                                    <div className="visibility-toggle-group">
+                                      <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#ef4444' }}>
+                                        품절 상태
+                                      </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <button
+                                        type="button"
+                                        className="restore-product-action-btn"
+                                        onClick={() => handleRestoreProduct(product.id, product.name)}
+                                        style={{
+                                          padding: '8px 16px',
+                                          borderRadius: '8px',
+                                          border: '2px solid var(--accent)',
+                                          backgroundColor: 'var(--accent)',
+                                          color: 'white',
+                                          fontWeight: '800',
+                                          fontSize: '0.85rem',
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                      >
+                                        복원하기
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="delete-product-action-btn"
+                                        onClick={() => handleRealDeleteProduct(product.id, product.name)}
+                                        style={{
+                                          backgroundColor: '#ef4444',
+                                          borderColor: '#ef4444',
+                                          color: 'white',
+                                          padding: '8px 16px',
+                                          borderRadius: '8px',
+                                          fontWeight: '800',
+                                          fontSize: '0.85rem',
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                      >
+                                        완전 삭제
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* 상품 노출 제어 토글 */}
+                                    <div className="visibility-toggle-group">
+                                      <label className="toggle-switch">
+                                        <input
+                                          type="checkbox"
+                                          checked={product.is_visible}
+                                          onChange={() => handleToggleProductVisibility(product.id, product.is_visible)}
+                                        />
+                                        <span className="toggle-slider"></span>
+                                      </label>
+                                      <span className={`visibility-label ${product.is_visible ? 'visible' : 'hidden'}`}>
+                                        {product.is_visible ? '쇼핑몰 노출 중' : '임시 품절'}
+                                      </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <button
+                                        className="delete-product-action-btn"
+                                        onClick={() => handleDeleteProduct(product.id, product.name)}
+                                      >
+                                        상품 품절
+                                      </button>
+                                      <button
+                                        className="delete-product-action-btn"
+                                        onClick={() => handleRealDeleteProduct(product.id, product.name)}
+                                        style={{
+                                          backgroundColor: '#ef4444',
+                                          borderColor: '#ef4444',
+                                          color: 'white'
+                                        }}
+                                      >
+                                        완전 삭제
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* 색상 옵션 관리 영역 */}
+                              <div className="manage-variants-section">
+                                <h4>색상 옵션 관리 ({productVariants.length})</h4>
+
+                                {productVariants.length === 0 ? (
+                                  <p className="no-variants-text">등록된 색상 옵션이 없습니다.</p>
+                                ) : (
+                                  <div className="manage-variants-list">
+                                    {productVariants.map((variant) => (
+                                      <div key={variant.id} className="manage-variant-row">
+                                        <img src={variant.image} alt={variant.color_name} className="manage-variant-thumb" />
+                                        <span className="manage-variant-name">{variant.color_name}</span>
+
+                                        <div className="manage-variant-row-controls">
+                                          {!product.is_deleted && !product.is_real_deleted ? (
+                                            <>
+                                              {/* 색상 노출 토글 */}
+                                              <button
+                                                className={`variant-visibility-btn ${variant.is_visible ? 'visible' : 'hidden'}`}
+                                                onClick={() => handleToggleVariantVisibility(variant.id, variant.is_visible)}
+                                                title={variant.is_visible ? '노출 중 (클릭 시 임시 품절)' : '임시 품절 (클릭 시 노출)'}
+                                              >
+                                                {variant.is_visible ? '노출' : '임시 품절'}
+                                              </button>
+                                              {/* 색상 삭제 */}
+                                              <button
+                                                className="variant-delete-btn"
+                                                onClick={() => handleDeleteVariant(variant.id, variant.color_name)}
+                                                title="옵션 품절"
+                                              >
+                                                ✕
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                              {product.is_real_deleted ? '삭제 상태' : (variant.is_visible ? '노출 상태' : '임시 품절 상태')}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 신규 색상 옵션 추가 (인라인 폼) */}
+                                {!product.is_deleted && !product.is_real_deleted && (
+                                  <div className="inline-add-variant-box">
+                                    <h5>새 색상 추가</h5>
+                                    <div className="inline-variant-form-row">
+                                      <div className="inline-file-input-wrapper">
+                                        <input
+                                          type="file"
+                                          id={`inline-file-input-${product.id}`}
+                                          accept="image/*"
+                                          onChange={(e) => handleInlineVariantImageChange(product.id, e)}
+                                          disabled={inlineInput.isUploading}
+                                          style={{ display: 'none' }}
+                                        />
+                                        <label
+                                          htmlFor={`inline-file-input-${product.id}`}
+                                          className="inline-file-label"
+                                        >
+                                          {inlineInput.isUploading ? (
+                                            <span className="spinner-small" style={{ display: 'block', width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+                                          ) : inlineInput.imageUrl ? (
+                                            <img src={inlineInput.imageUrl} alt="preview" className="inline-upload-preview" />
+                                          ) : (
+                                            '사진'
+                                          )}
+                                        </label>
+                                      </div>
+
+                                      <input
+                                        type="text"
+                                        value={inlineInput.colorName}
+                                        onChange={(e) => updateInlineInput(product.id, { colorName: e.target.value })}
+                                        placeholder="색상명 입력"
+                                        className="inline-variant-name-input"
+                                      />
+
+                                      <button
+                                        type="button"
+                                        className="inline-variant-add-submit-btn"
+                                        onClick={() => handleAddInlineVariant(product.id)}
+                                        disabled={inlineInput.isUploading || !inlineInput.imageUrl || !inlineInput.colorName.trim()}
+                                      >
+                                        추가
+                                      </button>
+                                    </div>
+                                    {inlineInput.isUploading && <p className="inline-upload-progress-text">{inlineInput.progress}</p>}
                                   </div>
                                 )}
                               </div>
                             </div>
-
-                            <div className="manage-product-controls">
-                              {product.is_deleted ? (
-                                <>
-                                  <div className="visibility-toggle-group">
-                                    <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#ef4444' }}>
-                                      품절 상태
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className="restore-product-action-btn"
-                                    onClick={() => handleRestoreProduct(product.id, product.name)}
-                                    style={{
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      border: '2px solid var(--accent)',
-                                      backgroundColor: 'var(--accent)',
-                                      color: 'white',
-                                      fontWeight: '800',
-                                      fontSize: '0.85rem',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  >
-                                    복원하기
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  {/* 상품 노출 제어 토글 */}
-                                  <div className="visibility-toggle-group">
-                                    <label className="toggle-switch">
-                                      <input
-                                        type="checkbox"
-                                        checked={product.is_visible}
-                                        onChange={() => handleToggleProductVisibility(product.id, product.is_visible)}
-                                      />
-                                      <span className="toggle-slider"></span>
-                                    </label>
-                                    <span className={`visibility-label ${product.is_visible ? 'visible' : 'hidden'}`}>
-                                      {product.is_visible ? '쇼핑몰 노출 중' : '임시 품절'}
-                                    </span>
-                                  </div>
-
-                                  {/* 상품 삭제 */}
-                                  <button
-                                    className="delete-product-action-btn"
-                                    onClick={() => handleDeleteProduct(product.id, product.name)}
-                                  >
-                                    상품 품절
-                                  </button>
-                                </>
-                              )}
-                            </div>
-
-                            {/* 색상 옵션 관리 영역 */}
-                            <div className="manage-variants-section">
-                              <h4>색상 옵션 관리 ({productVariants.length})</h4>
-
-                              {productVariants.length === 0 ? (
-                                <p className="no-variants-text">등록된 색상 옵션이 없습니다.</p>
-                              ) : (
-                                <div className="manage-variants-list">
-                                  {productVariants.map((variant) => (
-                                    <div key={variant.id} className="manage-variant-row">
-                                      <img src={variant.image} alt={variant.color_name} className="manage-variant-thumb" />
-                                      <span className="manage-variant-name">{variant.color_name}</span>
-
-                                      <div className="manage-variant-row-controls">
-                                        {!product.is_deleted ? (
-                                          <>
-                                            {/* 색상 노출 토글 */}
-                                            <button
-                                              className={`variant-visibility-btn ${variant.is_visible ? 'visible' : 'hidden'}`}
-                                              onClick={() => handleToggleVariantVisibility(variant.id, variant.is_visible)}
-                                              title={variant.is_visible ? '노출 중 (클릭 시 임시 품절)' : '임시 품절 (클릭 시 노출)'}
-                                            >
-                                              {variant.is_visible ? '노출' : '임시 품절'}
-                                            </button>
-                                            {/* 색상 삭제 */}
-                                            <button
-                                              className="variant-delete-btn"
-                                              onClick={() => handleDeleteVariant(variant.id, variant.color_name)}
-                                              title="옵션 품절"
-                                            >
-                                              ✕
-                                            </button>
-                                          </>
-                                        ) : (
-                                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                            {variant.is_visible ? '노출 상태' : '임시 품절 상태'}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* 신규 색상 옵션 추가 (인라인 폼) */}
-                              {!product.is_deleted && (
-                                <div className="inline-add-variant-box">
-                                  <h5>새 색상 추가</h5>
-                                  <div className="inline-variant-form-row">
-                                    <div className="inline-file-input-wrapper">
-                                      <input
-                                        type="file"
-                                        id={`inline-file-input-${product.id}`}
-                                        accept="image/*"
-                                        onChange={(e) => handleInlineVariantImageChange(product.id, e)}
-                                        disabled={inlineInput.isUploading}
-                                        style={{ display: 'none' }}
-                                      />
-                                      <label
-                                        htmlFor={`inline-file-input-${product.id}`}
-                                        className="inline-file-label"
-                                      >
-                                        {inlineInput.isUploading ? (
-                                          <span className="spinner-small" style={{ display: 'block', width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
-                                        ) : inlineInput.imageUrl ? (
-                                          <img src={inlineInput.imageUrl} alt="preview" className="inline-upload-preview" />
-                                        ) : (
-                                          '사진'
-                                        )}
-                                      </label>
-                                    </div>
-
-                                    <input
-                                      type="text"
-                                      value={inlineInput.colorName}
-                                      onChange={(e) => updateInlineInput(product.id, { colorName: e.target.value })}
-                                      placeholder="색상명 입력"
-                                      className="inline-variant-name-input"
-                                    />
-
-                                    <button
-                                      type="button"
-                                      className="inline-variant-add-submit-btn"
-                                      onClick={() => handleAddInlineVariant(product.id)}
-                                      disabled={inlineInput.isUploading || !inlineInput.imageUrl || !inlineInput.colorName.trim()}
-                                    >
-                                      추가
-                                    </button>
-                                  </div>
-                                  {inlineInput.isUploading && <p className="inline-upload-progress-text">{inlineInput.progress}</p>}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
-        );
-      })() : (
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          );
+        })() : (
           <form onSubmit={handleProductSubmit} className="product-register-form">
             <div className="form-sections-grid">
 
@@ -1762,7 +1939,7 @@ export default function AdminPage() {
             </div>
 
             <div className="customer-modal-body" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              
+
               {/* 이미지 파일 추가 업로더 */}
               <div className="modal-upload-box" style={{ border: '2px dashed var(--border)', borderRadius: '12px', padding: '24px', textAlign: 'center', backgroundColor: 'var(--code-bg)' }}>
                 <input
@@ -1810,9 +1987,9 @@ export default function AdminPage() {
                         <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'var(--accent)', color: 'white', fontSize: '0.75rem', fontWeight: '800', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
                           {idx + 1}
                         </span>
-                        
+
                         <img src={url} alt={`대표 이미지 ${idx + 1}`} style={{ width: '100%', height: '90px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
-                        
+
                         {/* 순서 조정 & 삭제 액션 */}
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'space-between', marginTop: '4px' }}>
                           <button
@@ -1832,7 +2009,7 @@ export default function AdminPage() {
                             다음
                           </button>
                         </div>
-                        
+
                         <button
                           type="button"
                           onClick={() => handleRemoveTempImage(idx)}
@@ -1940,8 +2117,8 @@ export default function AdminPage() {
       {/* 카테고리 관리 팝업 모달 */}
       {isCategoryModalOpen && (
         <div className="customer-modal-overlay" onClick={() => setIsCategoryModalOpen(false)}>
-          <div 
-            className="customer-modal-container" 
+          <div
+            className="customer-modal-container"
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '450px',
@@ -1956,7 +2133,7 @@ export default function AdminPage() {
                   카테고리 편집
                 </h2>
               </div>
-              <button 
+              <button
                 type="button"
                 className="customer-modal-close-btn"
                 onClick={() => setIsCategoryModalOpen(false)}
@@ -1976,7 +2153,7 @@ export default function AdminPage() {
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.4' }}>
                 삭제할 카테고리 우측의 X 표시를 누르면 해당 카테고리가 삭제되며, 소속된 모든 상품이 '미지정'으로 변경됩니다.
               </p>
-              
+
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                 {Array.from(new Set(dbProducts.map(p => p.category).filter(Boolean))).map((cat) => (
                   <div
@@ -2044,6 +2221,158 @@ export default function AdminPage() {
                   cursor: 'pointer',
                   fontWeight: '800',
                   fontSize: '0.88rem'
+                }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 베스트 설정 팝업 모달 */}
+      {isBestModalOpen && (
+        <div className="customer-modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div className="customer-modal-container" style={{
+            width: '90%',
+            maxWidth: '600px',
+            backgroundColor: 'var(--bg)',
+            border: '2px solid var(--border)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            background: 'var(--bg) !important'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1.5px solid var(--border)', paddingBottom: '12px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '800', color: 'var(--text-h)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                베스트 설정
+              </h2>
+              <button
+                onClick={() => setIsBestModalOpen(false)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  fontSize: '1.5rem',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px', margin: 0, lineHeight: '1.4' }}>
+              쇼핑몰 홈화면 상단 베스트 영역에 노출할 상품을 선택하세요. (활성 상품만 지정 가능)
+            </p>
+
+            {/* Quick search input */}
+            <input
+              type="text"
+              placeholder="상품명 또는 카테고리 검색"
+              value={bestSearchQuery}
+              onChange={(e) => setBestSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1.5px solid var(--border)',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                color: 'var(--text-h)',
+                fontSize: '0.9rem',
+                fontWeight: '700',
+                outline: 'none',
+                marginBottom: '16px',
+                boxSizing: 'border-box'
+              }}
+            />
+
+            {/* Product List Scrollable */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
+              {dbProducts
+                .filter(p => !p.is_deleted && p.is_visible)
+                .filter(p => {
+                  const q = bestSearchQuery.trim().toLowerCase();
+                  if (!q) return true;
+                  return p.name.toLowerCase().includes(q) || (p.category && p.category.toLowerCase().includes(q));
+                })
+                .map(product => {
+                  const isBest = !!product.is_best;
+                  const isToggling = !!bestTogglingIds[product.id];
+
+                  return (
+                    <div
+                      key={product.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border)',
+                        background: isBest ? 'rgba(234, 179, 8, 0.04)' : 'rgba(255, 255, 255, 0.01)',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <img
+                        src={product.main_images[0] || ''}
+                        alt={product.name}
+                        style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-h)' }}>
+                          {product.name}
+                        </h4>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {product.category || '미지정'} · {product.price.toLocaleString()}원
+                        </span>
+                      </div>
+
+                      {/* Checkbox / Toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {isToggling ? (
+                          <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        ) : (
+                          <label className="toggle-switch" style={{ margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={isBest}
+                              onChange={() => handleToggleBestProduct(product.id, isBest)}
+                            />
+                            <span className="toggle-slider"></span>
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '12px', borderTop: '1.5px solid var(--border)' }}>
+              <button
+                onClick={() => setIsBestModalOpen(false)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  border: '2px solid var(--border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-h)',
+                  fontWeight: '800',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer'
                 }}
               >
                 닫기

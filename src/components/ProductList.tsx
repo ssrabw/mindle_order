@@ -8,6 +8,16 @@ const ProductList: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('전체');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -28,6 +38,8 @@ const ProductList: React.FC = () => {
             mainImages: p.main_images || [],
             isDeleted: p.is_deleted === true,
             isVisible: p.is_visible !== false,
+            isBest: p.is_best === true,
+            isRealDeleted: p.is_real_deleted === true,
             variants: (p.product_variants || [])
               .map((v: any) => ({
                 id: v.id,
@@ -62,6 +74,10 @@ const ProductList: React.FC = () => {
   const categories = ['전체', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
   const filteredProducts = products.filter((product) => {
+    // 0. Filter out completely deleted products
+    if (product.isRealDeleted) {
+      return false;
+    }
     // 1. Category Filter
     if (selectedCategory !== '전체' && product.category !== selectedCategory) {
       return false;
@@ -74,9 +90,75 @@ const ProductList: React.FC = () => {
     return true;
   });
 
+  const bestProducts = products.filter((product) => product.isBest && !product.isDeleted && product.isVisible && !product.isRealDeleted);
+  const shouldSlide = isMobile ? bestProducts.length >= 3 : bestProducts.length >= 5;
+
+  const renderBestProductCard = (product: Product, suffix: string = '') => {
+    return (
+      <Link
+        to={`/product/${product.id}`}
+        key={`${product.id}${suffix}`}
+        className="product-card best-product-card"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          textDecoration: 'none',
+          color: 'inherit'
+        }}
+      >
+        <div className="best-badge">
+          Best
+        </div>
+        <img
+          src={product.mainImages[0] || ''}
+          alt={product.name}
+          className="product-card-img"
+        />
+        <div className="product-card-info">
+          <h3 className="product-card-name">{product.name}</h3>
+          <p className="product-card-price">
+            {product.price.toLocaleString()}원
+          </p>
+        </div>
+      </Link>
+    );
+  };
+
   return (
     <div className="product-list-container">
       <h1 className="product-list-title">민들레 상품 목록</h1>
+
+      {/* Best Products Layer */}
+      {bestProducts.length > 0 && (
+        <div className="best-products-section glassmorphism" style={{
+          padding: '24px',
+          borderRadius: '20px',
+          marginBottom: '32px'
+        }}>
+          <div className="best-products-header" style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '4px' }}>BEST PRODUCTS</span>
+            <h2 style={{ fontSize: '1.6rem', fontWeight: '800', margin: '0' }}>인기 베스트 상품</h2>
+          </div>
+
+          {shouldSlide ? (
+            <div className="best-products-marquee-wrapper">
+              <div className="best-products-marquee-track">
+                <div className="best-products-marquee-group">
+                  {bestProducts.map((p) => renderBestProductCard(p, '-group1'))}
+                </div>
+                <div className="best-products-marquee-group" aria-hidden="true">
+                  {bestProducts.map((p) => renderBestProductCard(p, '-group2'))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="best-products-static-grid">
+              {bestProducts.map((p) => renderBestProductCard(p))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Category & Search Filter Bar */}
       <div className="orders-filter-bar glassmorphism" style={{
@@ -110,7 +192,7 @@ const ProductList: React.FC = () => {
           maxWidth: '500px',
           boxSizing: 'border-box'
         }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>🔍 검색:</span>
+          <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>검색:</span>
           <input
             type="text"
             placeholder="상품명 검색"
@@ -156,6 +238,13 @@ const ProductList: React.FC = () => {
                   pointerEvents: 'auto'
                 }}
               >
+                {/* Best Badge */}
+                {product.isBest && (
+                  <div className="best-badge">
+                    Best
+                  </div>
+                )}
+
                 {/* Diagonal line for Sold Out */}
                 {isSoldOut && (
                   <div style={{
@@ -175,7 +264,8 @@ const ProductList: React.FC = () => {
                   <div style={{
                     position: 'absolute',
                     top: '12px',
-                    left: '12px',
+                    left: product.isBest ? 'auto' : '12px',
+                    right: product.isBest ? '12px' : 'auto',
                     backgroundColor: isSoldOut ? '#ef4444' : '#eab308',
                     color: 'white',
                     padding: '4px 10px',
