@@ -179,7 +179,6 @@ const ProductList: React.FC = () => {
       }}>
         {/* Row 1: 카테고리 필터 태그 */}
         <div className="filter-buttons" style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
-          // 카테고리 태그 동적 생성
           {categories.map((cat) => (
             <button
               key={cat}
